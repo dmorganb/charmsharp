@@ -657,6 +657,27 @@ private:
             for (std::size_t n = 0; n < analyzed.statements.size();) {
                 const auto& node = analyzed.statements[n];
                 if (node.kind == detail::SdagKind::Ordinary) {
+                    // Local variables declared before a suspension cannot
+                    // safely be captured by an implicit SDAG serial block.
+                    // Recognize common built-in declarations conservatively;
+                    // richer declarations need later C++-aware analysis.
+                    const bool followed_by_wait = std::any_of(
+                        analyzed.statements.begin() + static_cast<std::ptrdiff_t>(n + 1),
+                        analyzed.statements.end(), [](const detail::SdagNode& statement) {
+                            return statement.kind == detail::SdagKind::When;
+                        });
+                    if (followed_by_wait) {
+                        auto token = body + 1;
+                        while (token < body_end &&
+                               tokens_[token].begin < first_byte + node.begin)
+                            ++token;
+                        const auto first = token_text(token);
+                        if (first == "int" || first == "float" || first == "double" ||
+                            first == "bool" || first == "char" || first == "auto" ||
+                            first == "const" || first == "unsigned" ||
+                            first == "signed" || first == "short" || first == "long")
+                            fail(token, "local declaration before an SDAG wait requires a chare field");
+                    }
                     auto last = n;
                     while (last + 1 < analyzed.statements.size() &&
                            analyzed.statements[last + 1].kind == detail::SdagKind::Ordinary)
