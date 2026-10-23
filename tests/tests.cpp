@@ -169,11 +169,36 @@ entry:
     contains(output.cpp_source, "class Grid : public CBase_Grid");
 }
 
+void attributed_entries() {
+    const auto output = charmsharp::translate(R"SRC(group Worker {
+entry:
+    [[charm::threaded]] void compute(const int* values, int count) {
+        (void)values;
+        (void)count;
+    }
+    [[charm::sync]] Reply* fetch();
+    void notify(CkReductionMsg* msg);
+};)SRC", "Attributes");
+    contains(output.interface_source, "entry [threaded] void compute(const int* values, int count);");
+    contains(output.interface_source, "entry [sync] Reply* fetch();");
+    contains(output.interface_source, "entry void notify(CkReductionMsg* msg);");
+    contains(output.cpp_source, "void compute(const int* values, int count)");
+    contains(output.cpp_source, "Reply* fetch();");
+    ++checks;
+    if (output.cpp_source.find("[[charm::") != std::string::npos)
+        throw std::runtime_error("Charm# entry attributes leaked into C++ output");
+}
+
 void diagnostics() {
     rejects("chare A { entry: int x; };", "only simple method");
-    rejects("chare A { entry: int value(); };", "only 'void name");
+    rejects("chare A { entry: int value(); };", "must return void");
     rejects("chare A { entry: void f() const; };", "qualifiers");
-    rejects("chare A { entry: [[charm::threaded]] void f(); };", "attributes");
+    rejects("chare A { entry: [[charm::unknown]] void f(); };", "unsupported Charm++ entry attribute");
+    rejects("chare A { entry: [[charm::threaded]] A(); };", "entry constructors cannot");
+    rejects("chare A { entry: [[charm::sync]] void f(); };", "sync entries must return");
+    rejects("chare A { entry: [[charm::threaded]] [[charm::sync]] void f(); };", "cannot be combined");
+    rejects("chare A { entry: [[charm::threaded]] [[charm::threaded]] void f(); };", "duplicate Charm++");
+    rejects("chare A { entry: [[other::threaded]] void f(); };", "expected [[charm::");
     rejects("chare A { entry: void f() { when ping() { } } };", "SDAG");
     rejects("chare A : public Base { entry: void f(); };", "inheritance");
     rejects("chare A {}; chare A {};", "duplicate chare name");
@@ -209,6 +234,7 @@ int main() {
     multiple_sections_and_definitions();
     multiple_chares_and_mainchare();
     groups_and_arrays();
+    attributed_entries();
     diagnostics();
     std::cout << "PASS " << checks << " checks\n";
 }

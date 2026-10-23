@@ -7,7 +7,7 @@ reusing `charmxi`, `charmc`, and the unmodified Charm++ runtime.
 This is an incremental prototype, not a complete implementation of the
 `charmsharp-grammar-v0.1.md` design draft. It supports multiple top-level
 `chare` classes, one optional `mainchare`, `group`, `nodegroup`,
-`array [ND] chare`, and simple methods under `entry:`;
+`array [ND] chare`, and methods under `entry:` with `threaded`/`sync` attributes;
 ordinary class members and surrounding C++ are retained as source text.
 
 ## Build and test
@@ -45,8 +45,9 @@ ordinary Charm++ application. The Counter example is a compile-only chare compon
 To run the compile-only integration check once `charmc` is available, use
 `make charm-check`. For a full executable example with `mainchare` and a worker,
 use `make charm-run`. Use `make charm-objects` for a program that creates a
-group, a nodegroup, and a one-dimensional chare array. GitHub Actions performs
-all three checks against Charm++ v8.0.0.
+group, a nodegroup, and chare arrays. Use `make charm-threaded` for a
+threaded-entry execution test, which also compiles a synchronous entry method.
+GitHub Actions performs all four checks against Charm++ v8.0.0.
 Its integration job caches the compiled multicore toolchain with
 `actions/cache@v4`; the first run builds the toolchain, and later cache hits
 skip the checkout and build steps. The cache key pins the Charm++ version,
@@ -88,11 +89,14 @@ and the two generated include lines).
   are parsed structurally; the Charm++ toolchain validates supported sizes.
   Namespaced types, messages, readonly variables, inheritance, and SDAG remain
   unsupported.
-- Entry signatures must be constructors `Counter(...)` or `void method(...)`.
-  Declarations and inline definitions work; out-of-line definitions remain
-  untouched ordinary C++.
-- No entry attributes, qualifiers, default arguments, initializer lists, or
-  templated entry methods. Parameter types themselves are preserved (including
+- Entry signatures support constructors, `void` methods, and message-pointer
+  returns for `[[charm::sync]]` entries. `[[charm::threaded]]` marks `void`
+  methods; both attributes are removed from emitted C++ and lowered to `.ci`
+  `[threaded]` / `[sync]`. Threaded constructors, combined attributes, and
+  unknown attributes are rejected. Declarations and inline definitions work;
+  out-of-line definitions remain untouched ordinary C++.
+- Other entry attributes, qualifiers, default arguments, initializer lists, or
+  templated entry methods are not yet supported. Parameter types themselves are preserved (including
   syntax the translator cannot validate), but Charm++ must accept their
   marshalling semantics.
 - `entry:` must contain methods, not fields, aliases, or nested declarations.
@@ -123,7 +127,7 @@ tests/tests.cpp                     translation and diagnostic regressions
 tests/cli_smoke.sh                  output and overwrite CLI test
 tests/fake_charm/                  minimal headers for C++ syntax smoke test
 tests/charm_smoke.sh                optional Charm++ compile check\ntests/charm_run.sh                  executable Charm++ test
-examples/Counter.csh               compile-only input\nexamples/Hello.csh                 executable mainchare and worker\nexamples/Objects.csh               executable group, nodegroup and array
+examples/Counter.csh               compile-only input\nexamples/Hello.csh                 executable mainchare and worker\nexamples/Objects.csh               executable group, nodegroup and array\nexamples/Threaded.csh              threaded and sync entry declarations
 docs/roadmap.md                     increment plan and acceptance criteria
 ```
 
