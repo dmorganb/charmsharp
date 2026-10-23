@@ -238,6 +238,36 @@ entry:
     contains(alone.interface_source, "module Globals {\n    readonly int size;");
 }
 
+void ordinary_inheritance() {
+    const auto output = charmsharp::translate(R"SRC(class Logging {
+public:
+    void log() {}
+};
+struct Metrics { int calls = 0; };
+chare Worker : public Logging, private Metrics {
+entry:
+    Worker() { log(); }
+    void work() { log(); }
+};
+group Service : protected Logging {
+entry:
+    Service() { log(); }
+};
+)SRC", "Inheritance");
+    contains(output.cpp_source,
+             "class Worker : public CBase_Worker, public Logging, private Metrics {");
+    contains(output.cpp_source, "class Service : public CBase_Service, protected Logging {");
+    contains(output.interface_source, "chare Worker {");
+    contains(output.interface_source, "group Service {");
+    ++checks;
+    if (output.interface_source.find("Logging") != std::string::npos)
+        throw std::runtime_error("ordinary C++ base leaked into .ci");
+
+    const auto default_access = charmsharp::translate(
+        "struct Domain {}; chare A : Domain { entry: A() {} };", "Access");
+    contains(default_access.cpp_source, "class A : public CBase_A, Domain {");
+}
+
 void diagnostics() {
     rejects("chare A { entry: int x; };", "only simple method");
     rejects("chare A { entry: int value(); };", "must return void");
@@ -249,7 +279,17 @@ void diagnostics() {
     rejects("chare A { entry: [[charm::threaded]] [[charm::threaded]] void f(); };", "duplicate Charm++");
     rejects("chare A { entry: [[other::threaded]] void f(); };", "expected [[charm::");
     rejects("chare A { entry: void f() { when ping() { } } };", "SDAG");
-    rejects("chare A : public Base { entry: void f(); };", "inheritance");
+    rejects("chare A : public Base { entry: void f(); };", "unresolved or later-defined");
+    rejects("chare Base {}; chare A : public Base {};", "parallel-base inheritance");
+    rejects("chare A : public Base {}; chare Base {};", "parallel-base inheritance");
+    rejects("struct Base {}; chare A : virtual Base {};", "virtual base");
+    rejects("struct Base {}; chare A : public virtual Base {};", "virtual base");
+    rejects("struct Base {}; chare A : public Base<int> {};", "complex base");
+    rejects("chare A : public {};", "expected a simple base class");
+    rejects("chare A : {};", "expected a base class");
+    rejects("chare A : public Later {}; struct Later {};", "later-defined");
+    rejects("struct Base {}; chare A : Base, Base {};", "duplicate base class");
+    rejects("struct Base {}; chare A : Base, {};", "after ','");
     rejects("chare A {}; chare A {};", "duplicate chare name");
     rejects("mainchare Main {}; mainchare Other {};", "only one mainchare");
     rejects("namespace N { chare A { entry: void f(); }; }", "namespace");
@@ -306,6 +346,7 @@ int main() {
     attributed_entries();
     fixed_size_messages();
     readonly_globals();
+    ordinary_inheritance();
     diagnostics();
     std::cout << "PASS " << checks << " checks\n";
 }
