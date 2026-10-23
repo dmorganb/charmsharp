@@ -1,7 +1,7 @@
 # Charm# — Draft Grammar and Translation Specification
 
 **Version:** 0.1 (design draft)  
-**Status:** Design draft; a subset of declarations has been implemented and compiler-validated, but inheritance and SDAG remain proposed  
+**Status:** Design draft; implementation covers a tested subset of declarations and SDAG (through Phase 5.3); remaining forms are proposals  
 **Target:** The existing Charm++ interface translator (`charmxi`), native C++ compiler, and unmodified Charm++ runtime
 
 ## 1. Purpose and compatibility
@@ -90,7 +90,7 @@ sdag-forall            = "forall", "[", IDENT, "]", "(",
 6. **Implicit receive declarations.** A `when` references one or more entry points. If an equivalent explicit declaration is absent, Charm# generates the corresponding `.ci` entry declaration. An explicit declaration is permitted and validated for signature compatibility; a separate C++ implementation for a `when`-managed entry point is rejected. A receive signature is **not** an ordinary function definition.
 7. **SDAG detection.** A method body containing a structurally recognized `when`, `overlap`, `case`, or `forall` is treated as SDAG-aware. Ordinary C++ methods remain ordinary C++ methods. A robust implementation must reject ambiguous/mixed constructs rather than guess.
 8. **Implicit `serial`.** Each maximal eligible contiguous run of ordinary C++ statements inside an SDAG-aware method becomes one `serial { ... }` block in generated `.ci`. A run must not cross an SDAG control-flow construct. C++ text inside these runs is preserved. The grammar above is an *abstract* source grammar: correctly identifying the maximal runs in all C++ control-flow configurations requires a stated recognition subset and tests.
-9. **Variable lifetime.** Variables whose values must live across a `when` suspension must already be members of the chare (or otherwise persistent values supported by Charm++). Charm# v0.1 does not lift C++ locals into coroutine frames or implicitly promote them into class fields.
+9. **Variable lifetime.** Variables whose values must live across a `when` suspension must already be members of the chare (or otherwise persistent values supported by Charm++). Charm# v0.1 does not lift C++ locals into coroutine frames or implicitly promote them into class fields. In particular, SDAG `for (int step = ...; ...; ...)` does not preserve the local `step` across Charmxi-generated continuation methods; use a persistent chare field and `for (step = ...; ...; ...)` instead. Shared member state is not safe for overlapping invocations without explicit coordination. See [SDAG variable lifetime](sdag-variable-lifetime.md) for observed compiler errors, examples, diagnostics, and future design considerations.
 10. **Matching.** `when receive[ref](...)` keeps Charm++'s existing reference-number semantics. No implicit correlation to the sender of a preceding proxy invocation. `overlap`, `case`, loops, and nested waits preserve SDAG semantics, including message buffering and matching rules.
 11. **Pass-through.** A project may still contain existing `.ci` files. Their contents are not reinterpreted by Charm#; generated modules must avoid collisions with those existing declarations.
 
