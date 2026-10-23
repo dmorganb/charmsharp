@@ -31,7 +31,7 @@ validate() {
     input=$1
     n=$2
     output=$3
-    awk -v n="$n" '
+    if ! awk -v n="$n" '
       /^Prefix\[/ {
         if (NF != 6 || $2 != "=" || $4 != "(expected" || $6 != "OK") bad = 1
         idx = substr($1, 8, length($1) - 8)
@@ -47,15 +47,24 @@ validate() {
       END {
         if (bad || count != n) exit 1
       }
-    ' "$input" > "$output.unsorted"
+    ' "$input" > "$output.unsorted"; then
+        echo "Invalid prefix output for N=$n: $input" >&2
+        grep '^Prefix' "$input" >&2 || true
+        return 1
+    fi
     sort -n "$output.unsorted" > "$output"
-    test "$(wc -l < "$output")" -eq "$n"
+    if test "$(wc -l < "$output")" -ne "$n"; then
+        echo "Missing prefix outputs for N=$n: $input" >&2
+        grep '^Prefix' "$input" >&2 || true
+        return 1
+    fi
 }
 
 # Multiple array sizes and processing-element counts; the original program's
 # deterministic per-element random delays induce varied arrival schedules.
 for pes in 1 2 4; do
     for count in 2 5 8 11; do
+        echo "Checking Prefix Sum N=$count +p$pes"
         (
             cd "$tmp/reference"
             timeout 60 ./prefix "$count" "+p$pes" > "$tmp/reference.out"
