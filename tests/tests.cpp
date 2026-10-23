@@ -623,6 +623,8 @@ entry:
             != std::string::npos)
         throw std::runtime_error("repeated reference-matched receive registered more than once");
 
+    rejects("chare A { entry: void start() { for (int step = 0; step < 2; ++step) { when deliver[step](int tag) {} } } };",
+            "SDAG for index must be a persistent chare field");
     rejects("chare A { entry: void start() { when deliver(int x) {} while (true) {} } };",
             "Phase 5.3 does not support");
     rejects("chare A { entry: void start() { when deliver(int x), other(int y) {} } };",
