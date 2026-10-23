@@ -20,7 +20,7 @@ unsupported entry attributes, return types, and remaining declaration features.
 | 4.0 | Complete | Port Primes to Charm# and compare compiled output against unmodified Charm++ reference in CI |
 | 4.1 | Complete | Support `[[charm::reductiontarget]]` and port Reduction; compare runtime results |
 | 4.2 | In progress | Structurally parse constructor initializer lists and retain them verbatim in C++ while emitting signature-only `.ci` entries; validate with Charm++ runtime |
-| 4.3 | Planned | Support variable-length marshalled entry parameters; port Jacobi2D |
+| 4.3 | Planned | Implement entry `T data[n]` marshalling syntax: preserve bounds in `.ci`, lower C++ signatures to `T* data`, validate named/literal bounds and remote copying; port Jacobi2D |
 | 4.4 | Planned | Implement benchmark-driven SDAG constructs; port Prefix Sum |
 | 5 | Planned | Extended SDAG references, `overlap`, `case`, lifetime diagnostics and expanded equivalence tests |
 | Later | Planned | Variable-size messages, richer entries, multi-file/module integration, source mapping |
@@ -50,6 +50,13 @@ unsupported entry attributes, return types, and remaining declaration features.
 - Reject forward-defined parallel bases, more than one parallel base, other
   parallel type kinds, and private/protected parallel inheritance until their
   semantics and C++ ordering are addressed.
+
+## Marshalled array parameter slice (phase 4.3)
+
+1. Recognize simple `T data[n]` parameter declarators in Charm# entry method declarations and definitions; limit supported array-bound expressions to those accepted by pinned Charmxi.
+2. Generate `.ci` entry parameters with the original `data[n]` length metadata and ordinary C++ pointer parameters (`T* data`) for the method implementation. Preserve other parameter types and method bodies. Rewrite matching declarations/definitions consistently.
+3. Do not infer serialization lengths from bare pointers; reject unsupported or ambiguous array declarators rather than silently emitting incorrect marshalling.
+4. Validate named and literal array bounds, invoke the entry through a proxy, and compare transferred element values against a handwritten Charm++ fixture before porting Jacobi2D. Keep `std::span` and a dedicated length attribute outside v0.1.
 
 ## Later SDAG slice
 
