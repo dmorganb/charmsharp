@@ -1,0 +1,15 @@
+mainmodule sdagwait {
+    mainchare Main {
+        entry Main(CkArgMsg* msg);
+        entry void done(int value);
+    };
+    chare Worker {
+        entry Worker(CProxy_Main p);
+        entry void deliver(int value);
+        entry void start() {
+            when deliver(int value) serial {
+                parent.done(value);
+            }
+        };
+    };
+};

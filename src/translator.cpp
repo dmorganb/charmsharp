@@ -40,10 +40,26 @@ struct Edit {
 };
 
 struct Chare {
+    struct Method {
+        std::string name;
+        std::string signature;
+        std::size_t begin;
+        std::size_t end;
+        bool definition;
+    };
+    struct Receive {
+        std::string name;
+        std::string signature;
+        std::size_t token;
+    };
     std::string kind;
     std::string name;
     std::string parallel_base;
     std::vector<std::string> entries;
+    std::vector<std::string> sdag_entries;
+    std::vector<Method> methods;
+    std::vector<Receive> receives;
+    bool has_sdag = false;
 };
 
 std::string_view trim(std::string_view text) {
@@ -145,6 +161,8 @@ public:
             ci += " {\n";
             for (const auto& signature : chare.entries)
                 ci += "        entry " + signature + ";\n";
+            for (const auto& definition : chare.sdag_entries)
+                ci += "        entry " + definition + ";\n";
             ci += "    };\n";
         }
         ci += "};\n";
@@ -405,8 +423,29 @@ private:
         edits_.push_back({tokens_[name].end, tokens_[brace].begin,
                           " : public CBase_" + chare_name +
                           (bases.cpp.empty() ? " " : ", " + bases.cpp + " ")});
-        chares_.push_back({kind, chare_name, bases.parallel, {}});
+        chares_.push_back({kind, chare_name, bases.parallel, {}, {}, {}, {}, false});
         parse_members(brace + 1, close, chares_.back());
+        auto& chare = chares_.back();
+        for (const auto& receive : chare.receives) {
+            auto existing = std::find_if(chare.methods.begin(), chare.methods.end(),
+                                         [&](const Chare::Method& method) {
+                                             return method.name == receive.name;
+                                         });
+            if (existing == chare.methods.end()) {
+                chare.entries.push_back(receive.signature);
+            } else {
+                if (existing->signature != receive.signature)
+                    fail(receive.token, "incompatible explicit SDAG receive entry declaration");
+                if (existing->definition)
+                    fail(receive.token, "SDAG receive entry cannot have a C++ implementation");
+                // The SDAG macro supplies the C++ receive method.
+                edits_.push_back({existing->begin, existing->end, ""});
+            }
+        }
+        if (chare.has_sdag) {
+            edits_.push_back({tokens_[close].begin, tokens_[close].begin,
+                              "\npublic:\n    " + chare.name + "_SDAG_CODE\n"});
+        }
         return close + 2;
     }
 
@@ -582,24 +621,78 @@ private:
                                                     tokens_[close].end - tokens_[begin].begin));
         if (std::find(chare.entries.begin(), chare.entries.end(), signature) != chare.entries.end())
             fail(begin, "duplicate entry method signature");
-        chare.entries.emplace_back(signature);
 
-        if (is(body, ";")) return body + 1;
+        if (is(body, ";")) {
+            chare.entries.emplace_back(signature);
+            chare.methods.push_back({name, signature, tokens_[begin].begin, tokens_[body].end, false});
+            return body + 1;
+        }
         const auto body_end = matching(body, "{", "}", end);
-        // Phase 5.0 recognizes and validates the SDAG structure but does
-        // not lower it yet. Keep this gate until SDAG code generation is ready.
+        bool candidate_sdag = false;
+        std::size_t first_sdag = body + 1;
         for (std::size_t i = body + 1; i < body_end; ++i) {
             if (is(i, "when") || is(i, "overlap") || is(i, "forall") ||
                 (is(i, "case") && is(i + 1, "{"))) {
-                const auto first_byte = tokens_[body].begin;
-                const auto text = source_.substr(first_byte, tokens_[body_end].end - first_byte);
-                try {
-                    (void)detail::parse_sdag_body(text);
-                } catch (const detail::SdagError& error) {
-                    throw Diagnostic(error.what(), first_byte + error.offset());
-                }
-                fail(i, "SDAG lowering is deferred until Phase 5.1");
+                candidate_sdag = true;
+                first_sdag = i;
+                break;
             }
+        }
+        if (candidate_sdag) {
+            const auto first_byte = tokens_[body].begin;
+            const auto text = source_.substr(first_byte, tokens_[body_end].end - first_byte);
+            detail::SdagBody analyzed;
+            try {
+                analyzed = detail::parse_sdag_body(text);
+            } catch (const detail::SdagError& error) {
+                throw Diagnostic(error.what(), first_byte + error.offset());
+            }
+            if (!analyzed.has_sdag || analyzed.statements.size() != 1 ||
+                analyzed.statements[0].kind != detail::SdagKind::When ||
+                name == chare.name || !attributes.empty())
+                fail(first_sdag, "Phase 5.1 supports one unannotated void entry with one when");
+            auto receive = body + 1;
+            if (!is(receive, "when"))
+                fail(first_sdag, "Phase 5.1 requires when as the only entry statement");
+            ++receive;
+            if (receive >= body_end || tokens_[receive].kind != Kind::Identifier)
+                fail(receive, "expected SDAG receive entry name");
+            const auto receive_name = token_text(receive++);
+            if (!is(receive, "("))
+                fail(receive, "Phase 5.1 does not support reference-matched when");
+            const auto receive_close = matching(receive, "(", ")", body_end);
+            if (is(receive_close + 1, ","))
+                fail(receive_close + 1, "Phase 5.1 does not support multiple receives");
+            const auto receive_signature = "void " + receive_name + std::string(
+                source_.substr(tokens_[receive].begin,
+                               tokens_[receive_close].end - tokens_[receive].begin));
+            const auto serial_or_brace = receive_close + 1;
+            const bool explicit_serial = is(serial_or_brace, "serial");
+            const auto receive_brace = explicit_serial ? serial_or_brace + 1 : serial_or_brace;
+            if (!is(receive_brace, "{"))
+                fail(receive_brace, "expected when receive body");
+            const auto receive_end = matching(receive_brace, "{", "}", body_end);
+            if (receive_end + 1 != body_end)
+                fail(receive_end + 1, "Phase 5.1 requires a single when statement");
+            // This slice only accepts ordinary C++ inside one serial block.
+            for (auto i = receive_brace + 1; i < receive_end; ++i) {
+                if (is(i, "when") || is(i, "overlap") || is(i, "forall") ||
+                    (is(i, "case") && is(i + 1, "{")))
+                    fail(i, "nested SDAG awaits are deferred");
+            }
+            std::string ci_body(text);
+            if (!explicit_serial) {
+                const auto offset = tokens_[receive_brace].begin - first_byte;
+                ci_body.insert(offset, "serial ");
+            }
+            chare.sdag_entries.push_back(signature + " " + ci_body);
+            chare.receives.push_back({receive_name, receive_signature, receive - 1});
+            chare.has_sdag = true;
+            edits_.push_back({tokens_[begin].begin, tokens_[body_end].end, ""});
+        } else {
+            chare.entries.emplace_back(signature);
+            chare.methods.push_back({name, signature, tokens_[begin].begin,
+                                     tokens_[body_end].end, true});
         }
         return is(body_end + 1, ";") ? body_end + 2 : body_end + 1;
     }

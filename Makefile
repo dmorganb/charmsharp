@@ -5,7 +5,7 @@ CPPFLAGS += -Iinclude
 LIB_SOURCES = src/lexer.cpp src/translator.cpp src/sdag.cpp
 HEADERS = src/lexer.hpp src/sdag.hpp include/charmsharp/translator.hpp
 
-.PHONY: all test charm-check charm-run charm-objects charm-threaded charm-message charm-readonly charm-inheritance charm-message-inheritance charm-parallel-inheritance charm-benchmark-primes charm-benchmark-reduction charm-ctor-initializers charm-benchmark-jacobi2d charm-marshalled-arrays clean
+.PHONY: all test charm-check charm-run charm-objects charm-threaded charm-message charm-readonly charm-inheritance charm-message-inheritance charm-parallel-inheritance charm-benchmark-primes charm-benchmark-reduction charm-ctor-initializers charm-benchmark-jacobi2d charm-marshalled-arrays charm-sdag-when clean
 all: build/charmsharp
 
 build/charmsharp: src/main.cpp $(LIB_SOURCES) $(HEADERS)
@@ -61,6 +61,9 @@ charm-benchmark-jacobi2d: build/charmsharp
 
 charm-marshalled-arrays: build/charmsharp
 	sh tests/charm_run.sh ./build/charmsharp examples/MarshalledArrays.csh MarshalledArrays 'Hello from marshalled arrays: 6'
+
+charm-sdag-when: build/charmsharp
+	sh tests/sdag_when_integration.sh ./build/charmsharp
 
 clean:
 	rm -f build/charmsharp build/tests
