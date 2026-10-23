@@ -117,3 +117,8 @@ jobs:
         run: |
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
           make charm-sdag-sequence
+
+      - name: Compare SDAG if, for, and reference matching with handwritten Charm++
+        run: |
+          export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
+          make charm-sdag-control
