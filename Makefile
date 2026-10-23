@@ -5,7 +5,7 @@ CPPFLAGS += -Iinclude
 LIB_SOURCES = src/lexer.cpp src/translator.cpp
 HEADERS = src/lexer.hpp include/charmsharp/translator.hpp
 
-.PHONY: all test charm-check charm-run clean
+.PHONY: all test charm-check charm-run charm-objects clean
 all: build/charmsharp
 
 build/charmsharp: src/main.cpp $(LIB_SOURCES) $(HEADERS)
@@ -25,6 +25,9 @@ charm-check: build/charmsharp
 
 charm-run: build/charmsharp
 	sh tests/charm_run.sh ./build/charmsharp examples/Hello.csh
+
+charm-objects: build/charmsharp
+	sh tests/charm_run.sh ./build/charmsharp examples/Objects.csh Objects 'Hello from array Cell'
 
 clean:
 	rm -f build/charmsharp build/tests
