@@ -36,11 +36,11 @@ validate() {
         if (NF != 6 || $2 != "=" || $4 != "(expected" || $6 != "OK") bad = 1
         idx = substr($1, 8, length($1) - 8)
         val = $3
-        exp = $5
-        sub(/\)$/, "", exp)
-        if (idx !~ /^[0-9]+$/ || val !~ /^[0-9]+$/ || exp !~ /^[0-9]+$/) bad = 1
+        expected_value = $5
+        sub(/\)$/, "", expected_value)
+        if (idx !~ /^[0-9]+$/ || val !~ /^[0-9]+$/ || expected_value !~ /^[0-9]+$/) bad = 1
         if (idx < 0 || idx >= n || seen[idx]++ || val != (idx + 1) * (idx + 2) / 2 ||
-            exp != val) bad = 1
+            expected_value != val) bad = 1
         print idx, val
         count++
       }
