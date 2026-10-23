@@ -543,8 +543,6 @@ entry:
             "incompatible explicit SDAG receive");
     rejects("chare A { entry: void recv(int value) {} void start() { when recv(int value) { CkExit(); } } };",
             "SDAG receive entry cannot have a C++ implementation");
-    rejects("chare A { entry: void start() { when recv[1](int n) { CkExit(); } } };",
-            "reference-matched");
     rejects("chare A { entry: void start() { when a(int n), b(int m) { CkExit(); } } };",
             "multiple receives");
     rejects("chare A { entry: void start() { when a(int n) { CkExit(); } if (true) { CkExit(); } } };",
@@ -582,12 +580,56 @@ entry:
             "local declaration before an SDAG wait");
     rejects("chare A { entry: void f() { const int temp = 1; when ping() { CkExit(); } } };",
             "local declaration before an SDAG wait");
-    rejects("chare A { entry: void f() { when ping[42](int n) {} } };",
-            "reference-matched");
     rejects("chare A { entry: void f() { when ping(int n), pong(int m) {} } };",
             "multiple receives");
     rejects("chare A { entry: void f() { when ping() {} overlap {} } };",
-            "nested or conditional");
+            "Phase 5.3 does not support");
+}
+
+void sdag_if_for_ref_matching() {
+    const auto generated = charmsharp::translate(R"SRC(chare Worker {
+    int total = 0;
+entry:
+    void start() {
+        for (int step = 0; step < 2; ++step) {
+            when deliver[step](int tag, int value) {
+                total += value;
+            }
+        }
+        if (total == 42) {
+            finish(total);
+        } else {
+            finish(-1);
+        }
+    }
+};)SRC", "Control");
+    contains(generated.interface_source, "entry void deliver(int tag, int value);");
+    contains(generated.interface_source, "when deliver[step](int tag, int value) serial {");
+    contains(generated.interface_source, "for (int step = 0; step < 2; ++step)");
+    contains(generated.interface_source, "if (total == 42)");
+    contains(generated.interface_source, "finish(-1);");
+    contains(generated.cpp_source, "Worker_SDAG_CODE");
+
+    const auto duplicate = charmsharp::translate(R"SRC(chare Worker {
+entry:
+    void start() {
+        when deliver[0](int tag, int value) { CkPrintf("%d", value); }
+        when deliver[1](int tag, int value) { CkExit(); }
+    }
+};)SRC", "Repeated");
+    ++checks;
+    const auto first = duplicate.interface_source.find("entry void deliver(int tag, int value);");
+    if (first == std::string::npos ||
+        duplicate.interface_source.find("entry void deliver(int tag, int value);", first + 1)
+            != std::string::npos)
+        throw std::runtime_error("repeated reference-matched receive registered more than once");
+
+    rejects("chare A { entry: void start() { when deliver(int x) {} while (true) {} } };",
+            "Phase 5.3 does not support");
+    rejects("chare A { entry: void start() { when deliver(int x), other(int y) {} } };",
+            "multiple receives");
+    rejects("chare A { entry: void start() { when deliver(int x) {} for(;;) overlap {} } };",
+            "Phase 5.3 does not support");
 }
 
 void diagnostics() {
@@ -600,7 +642,7 @@ void diagnostics() {
     rejects("chare A { entry: [[charm::threaded]] [[charm::sync]] void f(); };", "cannot be combined");
     rejects("chare A { entry: [[charm::threaded]] [[charm::threaded]] void f(); };", "duplicate Charm++");
     rejects("chare A { entry: [[other::threaded]] void f(); };", "expected [[charm::");
-    rejects("chare A { entry: void f() { if (true) { when ping() {} } } };", "Phase 5.2");
+
     rejects("chare A : public Base { entry: void f(); };", "unresolved or later-defined");
     rejects("chare A : public Base {}; chare Base {};", "defined before derived");
     rejects("chare Base {}; chare A : Base {};", "explicit public");
@@ -688,6 +730,7 @@ int main() {
     sdag_structure();
     basic_sdag_when_lowering();
     implicit_sdag_serial_runs();
+    sdag_if_for_ref_matching();
     diagnostics();
     std::cout << "PASS " << checks << " checks\n";
 }
