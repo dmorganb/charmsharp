@@ -547,8 +547,47 @@ entry:
             "reference-matched");
     rejects("chare A { entry: void start() { when a(int n), b(int m) { CkExit(); } } };",
             "multiple receives");
-    rejects("chare A { entry: void start() { when a(int n) { CkExit(); } after(); } };",
-            "one unannotated void entry with one when");
+    rejects("chare A { entry: void start() { when a(int n) { CkExit(); } if (true) { CkExit(); } } };",
+            "Phase 5.2 does not support nested or conditional");
+
+}
+
+void implicit_sdag_serial_runs() {
+    const auto generated = charmsharp::translate(R"SRC(chare Worker {
+    int total = 0;
+entry:
+    void start() {
+        total = 0;
+        total += 1;
+        when first(int a) { total += a; }
+        total += 2;
+        when second(int b) serial { total += b; }
+        report(total);
+    }
+};)SRC", "Sequence");
+    contains(generated.interface_source, "entry void first(int a);");
+    contains(generated.interface_source, "entry void second(int b);");
+    contains(generated.interface_source, "serial {");
+    contains(generated.interface_source, "total = 0;");
+    contains(generated.interface_source, "total += 1;");
+    contains(generated.interface_source, "when first(int a) serial {");
+    contains(generated.interface_source, "when second(int b) serial {");
+    contains(generated.interface_source, "report(total);");
+    contains(generated.cpp_source, "Worker_SDAG_CODE");
+    ++checks;
+    if (generated.cpp_source.find("void start() {") != std::string::npos)
+        throw std::runtime_error("segmented SDAG entry body leaked into C++");
+
+    rejects("chare A { entry: void f() { int temp = 1; when ping() { CkExit(); } } };",
+            "local declaration before an SDAG wait");
+    rejects("chare A { entry: void f() { const int temp = 1; when ping() { CkExit(); } } };",
+            "local declaration before an SDAG wait");
+    rejects("chare A { entry: void f() { when ping[42](int n) {} } };",
+            "reference-matched");
+    rejects("chare A { entry: void f() { when ping(int n), pong(int m) {} } };",
+            "multiple receives");
+    rejects("chare A { entry: void f() { when ping() {} overlap {} } };",
+            "nested or conditional");
 }
 
 void diagnostics() {
@@ -561,7 +600,7 @@ void diagnostics() {
     rejects("chare A { entry: [[charm::threaded]] [[charm::sync]] void f(); };", "cannot be combined");
     rejects("chare A { entry: [[charm::threaded]] [[charm::threaded]] void f(); };", "duplicate Charm++");
     rejects("chare A { entry: [[other::threaded]] void f(); };", "expected [[charm::");
-    rejects("chare A { entry: void f() { when ping() {} when pong() {} } };", "Phase 5.1");
+    rejects("chare A { entry: void f() { if (true) { when ping() {} } } };", "Phase 5.2");
     rejects("chare A : public Base { entry: void f(); };", "unresolved or later-defined");
     rejects("chare A : public Base {}; chare Base {};", "defined before derived");
     rejects("chare Base {}; chare A : Base {};", "explicit public");
@@ -648,6 +687,7 @@ int main() {
     parallel_inheritance();
     sdag_structure();
     basic_sdag_when_lowering();
+    implicit_sdag_serial_runs();
     diagnostics();
     std::cout << "PASS " << checks << " checks\n";
 }

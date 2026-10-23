@@ -1,0 +1,18 @@
+mainmodule sequence {
+    mainchare Main {
+        entry Main(CkArgMsg* msg);
+        entry void done(int value);
+    };
+    chare Worker {
+        entry Worker(CProxy_Main p);
+        entry void deliver(int value);
+        entry void confirm(int value);
+        entry void start() {
+            serial { total = 0; }
+            when deliver(int value) serial { total += value; }
+            serial { total += 1; }
+            when confirm(int value) serial { total += value; }
+            serial { parent.done(total); }
+        };
+    };
+};
