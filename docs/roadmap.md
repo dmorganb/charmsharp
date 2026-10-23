@@ -130,6 +130,8 @@ Charm++ fixture and compile and execute through the pinned Charm++ CI toolchain.
   reference expression in `.ci`; register each receive entry only once even if
   used in multiple `when` sites. For parameter-marshalled entries Charm++ uses
   the first argument to match the reference expression.
+- Require the SDAG `for` iteration index to be a persistent chare field;
+  reject common typed loop-local declarations that cannot survive a suspension.
 - Test two messages sent in reverse iteration order, both queued before
   `start()` and delivered after `start()`, against a handwritten Charm++ fixture.
 - Nested `when` bodies, `while`, `forall`, `overlap`, and `case` are still
