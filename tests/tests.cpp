@@ -1,0 +1,156 @@
+#include "charmsharp/translator.hpp"
+
+#include <cstdlib>
+#include <functional>
+#include <iostream>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+
+namespace {
+
+int checks = 0;
+
+void equal(std::string_view actual, std::string_view expected) {
+    ++checks;
+    if (actual != expected) {
+        std::cerr << "EXPECTED:\n" << expected << "\nACTUAL:\n" << actual << '\n';
+        std::exit(1);
+    }
+}
+
+void contains(std::string_view actual, std::string_view substring) {
+    ++checks;
+    if (actual.find(substring) == std::string_view::npos) {
+        std::cerr << "missing substring: " << substring << "\nIN:\n" << actual << '\n';
+        std::exit(1);
+    }
+}
+
+void rejects(std::string_view input, std::string_view message) {
+    ++checks;
+    try {
+        (void)charmsharp::translate(input, "TestModule");
+    } catch (const charmsharp::Diagnostic& error) {
+        contains(error.what(), message);
+        return;
+    }
+    std::cerr << "Expected diagnostic containing: " << message << '\n';
+    std::exit(1);
+}
+
+void golden_counter() {
+    constexpr std::string_view input = R"SRC(#include <cstdio>
+// chare Fake { entry: void broken(); }
+chare Counter {
+private:
+    int value = 0;
+public:
+    int localValue() const { return value; }
+entry:
+    Counter();
+    void increment(int amount) { value += amount; }
+};
+)SRC";
+
+    const auto generated = charmsharp::translate(input, "CounterModule");
+    equal(generated.interface_source, R"CI(module CounterModule {
+    chare Counter {
+        entry Counter();
+        entry void increment(int amount);
+    };
+};
+)CI");
+    equal(generated.cpp_source, R"CPP(#include "CounterModule.decl.h"
+#include <cstdio>
+// chare Fake { entry: void broken(); }
+class Counter : public CBase_Counter {
+private:
+    int value = 0;
+public:
+    int localValue() const { return value; }
+public:
+    Counter();
+    void increment(int amount) { value += amount; }
+};
+#include "CounterModule.def.h"
+)CPP");
+}
+
+void preserves_ordinary_cpp_and_literal_braces() {
+    const auto output = charmsharp::translate(R"SRC(
+constexpr auto punctuation = R"raw({}; entry: chare when "})raw";
+int freeFunction() { return 42; }
+chare A {
+public:
+    const char* local() { return "{ // not a comment }"; }
+entry:
+    void f() { /* } */ auto s = R"x(})x"; (void)s; }
+private:
+    int x{3};
+};
+)SRC", "M");
+    contains(output.cpp_source, "R\"raw({}; entry: chare when \"})raw\"");
+    contains(output.cpp_source, "int freeFunction() { return 42; }");
+    contains(output.cpp_source, "private:\n    int x{3};");
+    contains(output.interface_source, "entry void f();");
+    ++checks;
+    if (output.interface_source.find("local") != std::string::npos)
+        throw std::runtime_error("non-entry method leaked into interface");
+}
+
+void multiple_sections_and_definitions() {
+    const auto output = charmsharp::translate(R"SRC(chare Worker {
+entry:
+  void first();
+private:
+  int x = 1;
+entry:
+  void second(int y) { x = y; }
+public:
+  int local() const { return x; }
+};)SRC", "Workers");
+    contains(output.interface_source, "entry void first();");
+    contains(output.interface_source, "entry void second(int y);");
+    ++checks;
+    if (output.interface_source.find("local") != std::string::npos)
+        throw std::runtime_error("public should not register entry methods");
+}
+
+void diagnostics() {
+    rejects("chare A { entry: int x; };", "only simple method");
+    rejects("chare A { entry: int value(); };", "only 'void name");
+    rejects("chare A { entry: void f() const; };", "qualifiers");
+    rejects("chare A { entry: [[charm::threaded]] void f(); };", "attributes");
+    rejects("chare A { entry: void f() { when ping() { } } };", "SDAG");
+    rejects("chare A : public Base { entry: void f(); };", "inheritance");
+    rejects("chare A { entry: void f(); }; chare B {};", "exactly one");
+    rejects("namespace N { chare A { entry: void f(); }; }", "namespace");
+    rejects("chare A { entry: void f(int x = 3); };", "default entry arguments");
+    rejects("chare A { entry: void f(); void f(); };", "duplicate");
+    rejects("chare A { entry: void f() { }", "unbalanced");
+    rejects("#if 0\nchare A {};\n#endif\n", "preprocessor conditional");
+    rejects("chare A {\n#if FOO\nentry: void f();\n#endif\n};",
+            "preprocessor directives between chare members");
+    rejects("array [1D] chare A {};", "later milestone");
+    rejects("chare A { entry: void f() { auto p = R\"(unterminated); } };",
+            "unterminated raw string");
+
+    const std::string source = "\n\nchare A {\nentry:\n  int value;\n};";
+    try {
+        (void)charmsharp::translate(source, "M");
+        throw std::runtime_error("expected a location diagnostic");
+    } catch (const charmsharp::Diagnostic& error) {
+        contains(charmsharp::format_diagnostic(source, error), "5:3:");
+    }
+}
+
+} // namespace
+
+int main() {
+    golden_counter();
+    preserves_ordinary_cpp_and_literal_braces();
+    multiple_sections_and_definitions();
+    diagnostics();
+    std::cout << "PASS " << checks << " checks\n";
+}
