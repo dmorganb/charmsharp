@@ -647,46 +647,78 @@ private:
             } catch (const detail::SdagError& error) {
                 throw Diagnostic(error.what(), first_byte + error.offset());
             }
-            if (!analyzed.has_sdag || analyzed.statements.size() != 1 ||
-                analyzed.statements[0].kind != detail::SdagKind::When ||
-                name == chare.name || !attributes.empty())
-                fail(first_sdag, "Phase 5.1 supports one unannotated void entry with one when");
-            auto receive = body + 1;
-            if (!is(receive, "when"))
-                fail(first_sdag, "Phase 5.1 requires when as the only entry statement");
-            ++receive;
-            if (receive >= body_end || tokens_[receive].kind != Kind::Identifier)
-                fail(receive, "expected SDAG receive entry name");
-            const auto receive_name = token_text(receive++);
-            if (!is(receive, "("))
-                fail(receive, "Phase 5.1 does not support reference-matched when");
-            const auto receive_close = matching(receive, "(", ")", body_end);
-            if (is(receive_close + 1, ","))
-                fail(receive_close + 1, "Phase 5.1 does not support multiple receives");
-            const auto receive_signature = "void " + receive_name + std::string(
-                source_.substr(tokens_[receive].begin,
-                               tokens_[receive_close].end - tokens_[receive].begin));
-            const auto serial_or_brace = receive_close + 1;
-            const bool explicit_serial = is(serial_or_brace, "serial");
-            const auto receive_brace = explicit_serial ? serial_or_brace + 1 : serial_or_brace;
-            if (!is(receive_brace, "{"))
-                fail(receive_brace, "expected when receive body");
-            const auto receive_end = matching(receive_brace, "{", "}", body_end);
-            if (receive_end + 1 != body_end)
-                fail(receive_end + 1, "Phase 5.1 requires a single when statement");
-            // This slice only accepts ordinary C++ inside one serial block.
-            for (auto i = receive_brace + 1; i < receive_end; ++i) {
-                if (is(i, "when") || is(i, "overlap") || is(i, "forall") ||
-                    (is(i, "case") && is(i + 1, "{")))
-                    fail(i, "nested SDAG awaits are deferred");
+            if (!analyzed.has_sdag || name == chare.name || !attributes.empty())
+                fail(first_sdag, "SDAG requires an unannotated void entry method");
+
+            // Every node is a half-open range in the original method body.
+            // Only top-level ordinary statements, explicit serial blocks, and
+            // direct when receives are lowered in Phase 5.2.
+            std::string ci_body = "{\n";
+            for (std::size_t n = 0; n < analyzed.statements.size();) {
+                const auto& node = analyzed.statements[n];
+                if (node.kind == detail::SdagKind::Ordinary) {
+                    auto last = n;
+                    while (last + 1 < analyzed.statements.size() &&
+                           analyzed.statements[last + 1].kind == detail::SdagKind::Ordinary)
+                        ++last;
+                    ci_body += "serial {\n";
+                    ci_body += std::string(text.substr(node.begin,
+                        analyzed.statements[last].end - node.begin));
+                    ci_body += "\n}\n";
+                    n = last + 1;
+                    continue;
+                }
+                if (node.kind == detail::SdagKind::Serial) {
+                    ci_body += std::string(text.substr(node.begin, node.end - node.begin));
+                    ci_body += "\n";
+                    ++n;
+                    continue;
+                }
+                if (node.kind != detail::SdagKind::When)
+                    throw Diagnostic("Phase 5.2 does not support nested or conditional SDAG statements",
+                                     first_byte + node.begin);
+
+                // Find the receive's tokens using source offsets; do not
+                // reconstruct parameters or ordinary serial C++ syntax.
+                auto receive = body + 1;
+                while (receive < body_end && tokens_[receive].begin < first_byte + node.begin)
+                    ++receive;
+                if (!is(receive, "when"))
+                    fail(receive, "expected a direct SDAG when statement");
+                ++receive;
+                if (receive >= body_end || tokens_[receive].kind != Kind::Identifier)
+                    fail(receive, "expected SDAG receive entry name");
+                const auto receive_name = token_text(receive++);
+                if (!is(receive, "("))
+                    fail(receive, "Phase 5.2 does not support reference-matched when");
+                const auto receive_close = matching(receive, "(", ")", body_end);
+                if (is(receive_close + 1, ","))
+                    fail(receive_close + 1, "Phase 5.2 does not support multiple receives");
+                const auto receive_signature = "void " + receive_name + std::string(
+                    source_.substr(tokens_[receive].begin,
+                                   tokens_[receive_close].end - tokens_[receive].begin));
+                const auto serial_or_brace = receive_close + 1;
+                const bool explicit_serial = is(serial_or_brace, "serial");
+                const auto receive_brace = explicit_serial ? serial_or_brace + 1 : serial_or_brace;
+                if (!is(receive_brace, "{"))
+                    fail(receive_brace, "expected when receive body");
+                const auto receive_end = matching(receive_brace, "{", "}", body_end);
+                for (auto i = receive_brace + 1; i < receive_end; ++i) {
+                    if (is(i, "when") || is(i, "overlap") || is(i, "forall") ||
+                        (is(i, "case") && is(i + 1, "{")))
+                        fail(i, "nested SDAG awaits are deferred");
+                }
+                std::string lowered(text.substr(node.begin, node.end - node.begin));
+                if (!explicit_serial) {
+                    const auto offset = tokens_[receive_brace].begin - (first_byte + node.begin);
+                    lowered.insert(offset, "serial ");
+                }
+                ci_body += lowered + "\n";
+                chare.receives.push_back({receive_name, receive_signature, receive - 1});
+                ++n;
             }
-            std::string ci_body(text);
-            if (!explicit_serial) {
-                const auto offset = tokens_[receive_brace].begin - first_byte;
-                ci_body.insert(offset, "serial ");
-            }
+            ci_body += "}";
             chare.sdag_entries.push_back(signature + " " + ci_body);
-            chare.receives.push_back({receive_name, receive_signature, receive - 1});
             chare.has_sdag = true;
             edits_.push_back({tokens_[begin].begin, tokens_[body_end].end, ""});
         } else {
