@@ -97,3 +97,8 @@ jobs:
         run: |
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
           make charm-ctor-initializers
+
+      - name: Compare Jacobi2D Charm# port against original Charm++
+        run: |
+          export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
+          make charm-benchmark-jacobi2d
