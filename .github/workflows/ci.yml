@@ -127,3 +127,8 @@ jobs:
         run: |
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
           make charm-benchmark-prefix-sum
+
+      - name: Compare SDAG while, forall, overlap and case with handwritten Charm++
+        run: |
+          export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
+          make charm-sdag-extended
