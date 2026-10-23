@@ -25,6 +25,7 @@ public:
 class Worker : public CBase_Worker {
     CProxy_Main parent;
     int total = 0;
+    int step = 0;
 public:
     Worker_SDAG_CODE
     Worker(CProxy_Main p) : parent(p) {}
