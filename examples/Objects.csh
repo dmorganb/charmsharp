@@ -5,6 +5,7 @@ entry:
         CProxy_Service::ckNew();
         CProxy_NodeService::ckNew();
         CProxy_Cell::ckNew(1);
+        CProxy_Grid::ckNew(1, 1);
     }
 };
 
@@ -24,4 +25,9 @@ entry:
         CkPrintf("Hello from array Cell\n");
         CkExit();
     }
+};
+
+array [2D] chare Grid {
+entry:
+    Grid() {}
 };
