@@ -578,6 +578,10 @@ entry:
     if (generated.cpp_source.find("void start() {") != std::string::npos)
         throw std::runtime_error("segmented SDAG entry body leaked into C++");
 
+    rejects("chare A { entry: void f() { int temp = 1; when ping() { CkExit(); } } };",
+            "local declaration before an SDAG wait");
+    rejects("chare A { entry: void f() { const int temp = 1; when ping() { CkExit(); } } };",
+            "local declaration before an SDAG wait");
     rejects("chare A { entry: void f() { when ping[42](int n) {} } };",
             "reference-matched");
     rejects("chare A { entry: void f() { when ping(int n), pong(int m) {} } };",
