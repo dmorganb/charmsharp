@@ -7,8 +7,10 @@ reusing `charmxi`, `charmc`, and the unmodified Charm++ runtime.
 This is an incremental prototype, not a complete implementation of the
 `charmsharp-grammar-v0.1.md` design draft. It supports multiple top-level
 `chare` classes, one optional `mainchare`, `group`, `nodegroup`,
-`array [ND] chare`, and methods under `entry:` with `threaded`/`sync` attributes;
-ordinary class members and surrounding C++ are retained as source text.
+`array [ND] chare`, fixed-size `message`, basic `readonly`, and methods under
+`entry:` with `threaded`/`sync` attributes. It supports restricted ordinary
+C++ inheritance and local chare-to-chare inheritance; surrounding C++ is
+retained as source text.
 
 ## Build and test
 
@@ -47,7 +49,8 @@ To run the compile-only integration check once `charmc` is available, use
 use `make charm-run`. Use `make charm-objects` for a program that creates a
 group, a nodegroup, and chare arrays. Use `make charm-threaded` for a
 threaded-entry execution test, which also compiles a synchronous entry method.
-GitHub Actions performs all four checks against Charm++ v8.0.0.
+GitHub Actions also executes message, readonly, and ordinary/parallel
+inheritance fixtures against Charm++ v8.0.0.
 Its integration job caches the compiled multicore toolchain with
 `actions/cache@v4`; the first run builds the toolchain, and later cache hits
 skip the checkout and build steps. The cache key pins the Charm++ version,
@@ -84,18 +87,19 @@ and the two generated include lines).
 
 ## Language coverage
 
-The [Charm# grammar and translation specification](docs/charmsharp-grammar-v0.1.md)\nnow includes proposed inheritance classification and lowering rules.\n\nFor an exact inventory of supported declarations, remaining Charm++ entry
-attributes, return-type restrictions, messages/readonly declarations, and the
-SDAG backlog, see [language coverage](docs/language-coverage.md). For milestone
-sequencing see [the roadmap](docs/roadmap.md).
+The [Charm# grammar and translation specification](docs/charmsharp-grammar-v0.1.md)
+contains the language design and inheritance rules. See the
+[implementation coverage](docs/language-coverage.md), the
+[Phase 3.4 declaration audit](docs/declaration-coverage-audit.md) against
+Charm++ v8.0.0, and the [roadmap](docs/roadmap.md).
 
 ## Deliberate limitations
 
 - Multiple global-scope `chare`, `group`, `nodegroup`, and `array [ND] chare`
   declarations and at most one `mainchare` are supported. Array dimensions
   are parsed structurally; the Charm++ toolchain validates supported sizes.
-  Namespaced types, messages, readonly variables, inheritance, and SDAG remain
-  unsupported.
+  Namespaced parallel types and SDAG remain unsupported. Fixed-size messages,
+  scalar/fixed-array readonly declarations, and restricted inheritance are supported.
 - Entry signatures support constructors, `void` methods, and message-pointer
   returns for `[[charm::sync]]` entries. `[[charm::threaded]]` marks `void`
   methods; both attributes are removed from emitted C++ and lowered to `.ci`
@@ -133,9 +137,19 @@ src/main.cpp                        file-based CLI
 tests/tests.cpp                     translation and diagnostic regressions
 tests/cli_smoke.sh                  output and overwrite CLI test
 tests/fake_charm/                  minimal headers for C++ syntax smoke test
-tests/charm_smoke.sh                optional Charm++ compile check\ntests/charm_run.sh                  executable Charm++ test
-examples/Counter.csh               compile-only input\nexamples/Hello.csh                 executable mainchare and worker\nexamples/Objects.csh               executable group, nodegroup and array\nexamples/Threaded.csh              threaded and sync entry declarations
+tests/charm_smoke.sh                optional Charm++ compile check
+tests/charm_run.sh                  executable Charm++ test
+examples/Counter.csh               compile-only input
+examples/Hello.csh                 executable mainchare and worker
+examples/Objects.csh               executable group, nodegroup and array
+examples/Threaded.csh              threaded and sync entry declarations
+examples/Message.csh               fixed-size message send/receive
+examples/Readonly.csh              readonly startup initialization
+examples/Inheritance.csh           ordinary chare inheritance
+examples/MessageInheritance.csh    ordinary message inheritance
+examples/ParallelInheritance.csh   inherited parallel proxy entry
 docs/roadmap.md                     increment plan and acceptance criteria
+docs/declaration-coverage-audit.md  Charm++ v8.0.0 interface coverage matrix
 ```
 
 ## Design decisions
@@ -144,8 +158,8 @@ The grammar document is an **extension grammar**, not a full C++20 grammar.
 For the first implementation, the parser recognizes only enough structure to
 find top-level parallel types and the boundaries of their entry methods. Opaque C++ method bodies
 are left alone. The lexer records offsets into the original input; the rewrite
-pass applies only three kinds of edits: parallel type declarations → `class`, generated CBase
-inheritance, and `entry:` → `public:`.
+pass edits only recognized Charm# syntax (parallel/message declarations,
+readonly qualifiers, generated base classes, and `entry:` → `public:`).
 
 This keeps the implementation small while leaving room to introduce SDAG
 recognition and `serial` segmentation as separately tested passes.
