@@ -163,5 +163,8 @@ see [SDAG variable lifetime](sdag-variable-lifetime.md).
   input `1, 2, ..., N`: element `i` must produce `(i+1)*(i+2)/2` exactly once.
 - Normalize results by index (messages can arrive in different orders), reject
   missing/duplicate/incorrect outputs, and compare both implementations.
-- Exercise multiple element counts and +p1/+p2/+p4, with original jittered
-  sends retained to vary communication timing.
+- Exercise multiple element counts on +p1 and +p2, and +p4 when four
+  processing cores are available; avoid Charm++ multicore oversubscription on
+  two-core CI runners. Original jittered sends vary communication timing.
+- **Complete:** the C++20 tests and Charm++ v8.0.0 integration job pass for
+  the pinned reference and transpiled port, with every prefix checked.
