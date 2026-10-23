@@ -5,7 +5,7 @@ CPPFLAGS += -Iinclude
 LIB_SOURCES = src/lexer.cpp src/translator.cpp src/sdag.cpp
 HEADERS = src/lexer.hpp src/sdag.hpp include/charmsharp/translator.hpp
 
-.PHONY: all test charm-check charm-run charm-objects charm-threaded charm-message charm-readonly charm-inheritance charm-message-inheritance charm-parallel-inheritance charm-benchmark-primes charm-benchmark-reduction charm-ctor-initializers charm-benchmark-jacobi2d charm-marshalled-arrays charm-sdag-when charm-sdag-sequence charm-sdag-control clean
+.PHONY: all test charm-check charm-run charm-objects charm-threaded charm-message charm-readonly charm-inheritance charm-message-inheritance charm-parallel-inheritance charm-benchmark-primes charm-benchmark-reduction charm-ctor-initializers charm-benchmark-jacobi2d charm-marshalled-arrays charm-sdag-when charm-sdag-sequence charm-sdag-control charm-benchmark-prefix-sum clean
 all: build/charmsharp
 
 build/charmsharp: src/main.cpp $(LIB_SOURCES) $(HEADERS)
@@ -70,6 +70,9 @@ charm-sdag-sequence: build/charmsharp
 
 charm-sdag-control: build/charmsharp
 	sh tests/sdag_control_integration.sh ./build/charmsharp
+
+charm-benchmark-prefix-sum: build/charmsharp
+	sh tests/benchmark_prefix_sum.sh ./build/charmsharp
 
 clean:
 	rm -f build/charmsharp build/tests
