@@ -1,66 +1,52 @@
-# Charm# — incremental prototype
+# Charm# — a lightweight Charm++ source-to-source transpiler
 
-Charm# is a lightweight C++20 source-to-source extension to Charm++. It aims to
-reduce duplication between a C++ chare class and its `.ci` declaration, while
-reusing `charmxi`, `charmc`, and the unmodified Charm++ runtime.
+Charm# is a C++20-based language extension that lets Charm++ programmers put
+parallel object declarations, entry methods, messages, and Structured Dagger
+(SDAG) control flow in a single `.csh` file. The transpiler generates ordinary
+Charm++ `.ci` and C++ sources and delegates interface generation, compilation,
+linking, and execution to the existing Charm++ toolchain.
 
-This is an incremental prototype, not a complete implementation of the
-`charmsharp-grammar-v0.1.md` design draft. It supports multiple top-level
-`chare` classes, one optional `mainchare`, `group`, `nodegroup`,
-`array [ND] chare`, fixed-size `message`, basic `readonly`, and methods under
-`entry:` with `threaded`/`sync` attributes. It supports restricted ordinary
-C++ inheritance and local chare-to-chare inheritance; surrounding C++ is
-retained as source text.
+Its goal is to reduce the amount of handwritten and duplicated source code
+needed for Charm++ programs, while preserving ordinary C++ wherever possible.
+Charm# is a **research prototype** for a thesis, not a replacement for Charm++
+or a complete C++ parser. Its implementation uses a handwritten tokenizer,
+a small structural parser, and source-range rewriting.
 
-## Build and test
+## Quick start
 
-Requirements: C++20 compiler and `make`. No Charm++ installation is needed for
-the translator's unit tests.
+Requirements: a C++20 compiler and GNU Make. The transpiler and unit tests do
+not require Charm++.
 
 ```sh
 make
 make test
 ```
 
-Translate the example (output files must not already exist):
+Translate the executable Hello World example:
 
 ```sh
-./build/charmsharp --module CounterModule --out-dir generated examples/Counter.csh
+./build/charmsharp --module Hello --out-dir generated examples/Hello.csh
 ```
 
-This writes `generated/CounterModule.ci` and
-`generated/CounterModule.cpp`. Re-running the command requires `--force` to
-replace the generated files; source files are never overwritten.
+This produces `generated/Hello.ci` and `generated/Hello.cpp`. By default,
+existing output files are protected; use `--force` to regenerate them.
 
-If Charm++ is installed, compile with its existing tools:
+With Charm++ installed and `charmc` on `PATH`, compile and run the result:
 
 ```sh
 cd generated
-charmc CounterModule.ci
-charmc -c CounterModule.cpp
+charmc Hello.ci
+charmc Hello.cpp -o Hello
+./Hello +p2
 ```
 
-`charmc` invokes the Charm++ interface translator and C++ compiler; Charm#
-itself does not implement either. This produces an object for linking into an
-ordinary Charm++ application. The Counter example is a compile-only chare component.
+A convenient end-to-end check from the repository root is `make charm-run`.
+For a compile-only example, see `examples/Counter.csh` and `make charm-check`.
 
-To run the compile-only integration check once `charmc` is available, use
-`make charm-check`. For a full executable example with `mainchare` and a worker,
-use `make charm-run`. Use `make charm-objects` for a program that creates a
-group, a nodegroup, and chare arrays. Use `make charm-threaded` for a
-threaded-entry execution test, which also compiles a synchronous entry method.
-GitHub Actions also executes message, readonly, and ordinary/parallel
-inheritance fixtures against Charm++ v8.0.0.
-Its integration job caches the compiled multicore toolchain with
-`actions/cache@v4`; the first run builds the toolchain, and later cache hits
-skip the checkout and build steps. The cache key pins the Charm++ version,
-architecture, Ubuntu version, and build configuration.
-
-## Phase 1 translation
+## A single-source chare
 
 ```cpp
 chare Counter {
-private:
     int value = 0;
 entry:
     Counter() {}
@@ -68,7 +54,7 @@ entry:
 };
 ```
 
-Produces the interface:
+The `entry:` section generates ordinary Charm++ interface declarations:
 
 ```cpp
 module CounterModule {
@@ -79,87 +65,114 @@ module CounterModule {
 };
 ```
 
-The generated `.cpp` replaces `chare` with `class`, adds
-`public CBase_Counter`, changes `entry:` to `public:`, and includes the
-Charm++-generated `CounterModule.decl.h` and `CounterModule.def.h`.
-The rest of the source is preserved byte-for-byte (apart from these replacements
-and the two generated include lines).
+In the emitted C++, `chare` becomes a class inheriting from the generated
+`CBase_Counter`, and `entry:` becomes public access. Ordinary C++ method
+bodies remain in C++. The generated C++ includes the conventional
+`CounterModule.decl.h` and `CounterModule.def.h` files created by Charm++.
 
-## Language coverage
+## Implemented language features
 
-The [Charm# grammar and translation specification](docs/charmsharp-grammar-v0.1.md)
-contains the language design and inheritance rules. See the
-[implementation coverage](docs/language-coverage.md), the
-[Phase 3.4 declaration audit](docs/declaration-coverage-audit.md) against
-Charm++ v8.0.0, and the [roadmap](docs/roadmap.md).
+These are validated **subsets**, not exhaustive compatibility with the
+Charm++ interface language:
 
-## Deliberate limitations
+| Area | Supported Charm# forms |
+| --- | --- |
+| Parallel objects | `chare`, one `mainchare`, `group`, `nodegroup`, and array chares (1D and 2D exercised in CI) |
+| Entries | `entry:` declarations and inline definitions, constructors and initializer lists, `void` methods, simple synchronous message-pointer returns |
+| Entry attributes | `[[charm::threaded]]`, `[[charm::sync]]`, `[[charm::reductiontarget]]` |
+| Messages and globals | Fixed-size `message` definitions, scalar and fixed-array `readonly` declarations |
+| Inheritance | Restricted ordinary C++ bases for chares/messages; one previously defined local parallel chare base |
+| Marshalled parameters | Simple `T data[n]` entry arrays: retained in `.ci`, emitted as `T* data` in C++ |
+| SDAG | `when`, implicit/explicit `serial`, sequential waits, reference matching, `if`/`else`, `for`, `while`, `forall`, `overlap`, and `case` |
+| Ordinary C++ | Kept through source-range rewriting outside recognized Charm# extensions |
 
-- Multiple global-scope `chare`, `group`, `nodegroup`, and `array [ND] chare`
-  declarations and at most one `mainchare` are supported. Array dimensions
-  are parsed structurally; the Charm++ toolchain validates supported sizes.
-  Namespaced parallel types and SDAG remain unsupported. Fixed-size messages,
-  scalar/fixed-array readonly declarations, and restricted inheritance are supported.
-- Entry signatures support constructors, `void` methods, and message-pointer
-  returns for `[[charm::sync]]` entries. `[[charm::threaded]]` marks `void`
-  methods; both attributes are removed from emitted C++ and lowered to `.ci`
-  `[threaded]` / `[sync]`. Threaded constructors, combined attributes, and
-  unknown attributes are rejected. Declarations and inline definitions work;
-  out-of-line definitions remain untouched ordinary C++.
-- Other entry attributes, qualifiers, default arguments, initializer lists, or
-  templated entry methods are not yet supported. Parameter types themselves are preserved (including
-  syntax the translator cannot validate), but Charm++ must accept their
-  marshalling semantics.
-- `entry:` must contain methods, not fields, aliases, or nested declarations.
-  Ordinary `public:` does not register entries. Any access label closes the
-  preceding `entry:` section.
-- Comments, quoted literals, raw strings, and preprocessor directives are
-  tokenized without treating their contents as Charm# syntax. Preprocessor
-  conditionals spanning chare declarations/members are rejected. Macro-generated
-  Charm# structural syntax is not supported.
-- Source rewriting preserves original whitespace and code spans, but does not
-  yet emit `#line` mappings or a source map. C++ and Charm++ compiler diagnostics
-  may therefore refer to transformed line numbers.
-- The translator validates structural syntax, not arbitrary C++ legality,
-  Charm++ message serialization, or all possible entry signatures. Native
-  compilers remain responsible for those checks.
+SDAG bodies are emitted in the `.ci` source, and the generated C++ class
+receives Charm++'s `_SDAG_CODE` glue. For example, the source of
+[the Prefix Sum port](benchmarks/prefix-sum/charmsharp/prefix.csh) includes
+an SDAG loop and a reference-matched `when` receive.
 
-Errors name the source location and explain the unsupported feature. There is
-no attempt to guess a translation for deferred syntax.
+The precise syntax and restrictions are in the
+[grammar](docs/charmsharp-grammar-v0.1.md),
+[language coverage](docs/language-coverage.md), and
+[declaration coverage audit](docs/declaration-coverage-audit.md).
 
-## Layout
+## Benchmarks and validation
+
+Four algorithms have **both** a pinned, unmodified upstream Charm++ reference
+and a Charm# port:
+
+| Algorithm | Main feature exercised | End-to-end command |
+| --- | --- | --- |
+| [Primes](benchmarks/primes/) | Mainchare, asynchronous entry messages | `make charm-benchmark-primes` |
+| [Reduction](benchmarks/reduction/) | Array chares, reduction callback | `make charm-benchmark-reduction` |
+| [Jacobi2D](benchmarks/jacobi2d/) | 2D arrays, marshalled halo exchanges | `make charm-benchmark-jacobi2d` |
+| [Prefix Sum](benchmarks/prefix-sum/) | SDAG loop, conditional, tagged receives | `make charm-benchmark-prefix-sum` |
+
+All four comparisons are run in GitHub Actions against **Charm++ v8.0.0**.
+Tests compile and execute the original and transpiled implementations and
+compare their numerical or observable results. Prefix Sum checks every
+inclusive prefix for several array sizes and PE counts; its four-PE case
+runs only on machines with at least four available cores.
+
+Additional runtime integration fixtures compare SDAG behavior with
+handwritten Charm++ for early and late messages, including `while`,
+`forall`, `overlap`, and `case`.
+
+The GitHub Actions job caches compiled Charm++ artifacts so normal runs need
+not rebuild the toolchain. See [benchmark provenance and testing](benchmarks/README.md)
+for upstream revision and test details.
+
+## Known limitations
+
+- The structural parser is intentionally **not** a full C++ parser or type
+  checker. Charm++ and the C++ compiler still validate many declaration,
+  serialization, and runtime rules.
+- The `entry:` subset excludes arbitrary templates, default arguments,
+  qualifiers, complex return types, and most Charm++ entry attributes.
+  Namespaced parallel declarations and general multi-module dependency
+  discovery are not implemented.
+- Variable-size messages, complicated readonly types, and general C++
+  inheritance resolution are outside the tested subset.
+- SDAG receive bodies do not yet support nested SDAG waits or
+  comma-separated multi-receive dependencies. For SDAG `for` and `forall`,
+  indices that must survive suspension should be persistent chare fields.
+  General cross-suspension variable-lifetime analysis is not implemented;
+  see [the documented Charmxi limitation](docs/sdag-variable-lifetime.md).
+- Preprocessor conditionals spanning Charm# structural declarations are
+  rejected. Generated sources have no `#line` mapping or source maps yet.
+- One module is generated per translation input; generated output is not
+  a standalone compiler or runtime.
+
+Unsupported constructs generally produce source-located diagnostics rather
+than speculative translations.
+
+## Thesis measurement work
+
+The repository also contains an **early-stage**, separate Halstead metrics
+instrument under `tools/charm-metrics/`. Its token classifier and draft
+[classification policy](docs/halstead-classification-policy.md) exist, but
+full program-level metrics, reporting and benchmark comparisons are **not yet
+complete**. The planned measurement counts developer-authored `.ci` + C++
+for Charm++ and the corresponding `.csh` for Charm#, never generated files.
+See the [roadmap](docs/roadmap.md).
+
+## Repository layout
 
 ```text
-include/charmsharp/translator.hpp   public translation API
-src/lexer.{hpp,cpp}                 C++-aware tokenization and offsets
-src/translator.cpp                  structural parser and range edits
-src/main.cpp                        file-based CLI
-tests/tests.cpp                     translation and diagnostic regressions
-tests/cli_smoke.sh                  output and overwrite CLI test
-tests/fake_charm/                  minimal headers for C++ syntax smoke test
-tests/charm_smoke.sh                optional Charm++ compile check
-tests/charm_run.sh                  executable Charm++ test
-examples/Counter.csh               compile-only input
-examples/Hello.csh                 executable mainchare and worker
-examples/Objects.csh               executable group, nodegroup and array
-examples/Threaded.csh              threaded and sync entry declarations
-examples/Message.csh               fixed-size message send/receive
-examples/Readonly.csh              readonly startup initialization
-examples/Inheritance.csh           ordinary chare inheritance
-examples/MessageInheritance.csh    ordinary message inheritance
-examples/ParallelInheritance.csh   inherited parallel proxy entry
-docs/roadmap.md                     increment plan and acceptance criteria
-docs/declaration-coverage-audit.md  Charm++ v8.0.0 interface coverage matrix
+src/                    Charm# tokenizer, SDAG parser, translator, CLI
+include/charmsharp/     Public translation API
+examples/               Small runnable and compile-only Charm# programs
+tests/                  C++ unit tests, CLI tests, Charm++ integration fixtures
+benchmarks/             Four upstream Charm++/Charm# program pairs
+tools/charm-metrics/     Separate experimental Halstead token classifier
+docs/                   Grammar, coverage audit, roadmap, measurement policy
+.github/workflows/      C++20 tests and cached Charm++ integration
 ```
 
-## Design decisions
+## Design philosophy
 
-The grammar document is an **extension grammar**, not a full C++20 grammar.
-For the first implementation, the parser recognizes only enough structure to
-find top-level parallel types and the boundaries of their entry methods. Opaque C++ method bodies
-are left alone. The lexer records offsets into the original input; the rewrite
-pass edits only recognized Charm# syntax (parallel/message declarations,
-readonly qualifiers, generated base classes, and `entry:` → `public:`).
-
-This keeps the implementation small while leaving room to introduce SDAG
-recognition and `serial` segmentation as separately tested passes.
+Charm# is an **extension grammar** over C++, not a reimplementation of C++20.
+The translator recognizes only the additional Charm# structure, retains
+source byte ranges for ordinary C++, emits conventional Charm++ artifacts,
+and relies on the existing toolchain. This makes each increment independently
+testable against equivalent handwritten Charm++ code.

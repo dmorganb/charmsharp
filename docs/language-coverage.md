@@ -21,7 +21,7 @@ This page summarizes current implementation and its boundaries.
 | One `chare Derived : public Base` | `.ci` parallel inheritance + generated `CBase_Derived` | Inherited proxy method runtime test; base must be earlier-defined local chare. |
 | Ordinary C++ outside Charm# declarations | Source-range preservation | Pass-through, **not** a C++ semantic parser. |
 | SDAG `when`, implicit `serial`, sequential receives | SDAG entry bodies in `.ci` and generated `_SDAG_CODE` glue | Phase 5.1–5.2 handwritten Charm++ comparisons; early and late arrivals. |
-| SDAG `if`/`else`, `for`, and `when name[ref](...)` | Source-ranged recursive SDAG lowering and receive registration | Phase 5.3 order-sensitive, out-of-order receive test against Charm++ v8.0.0; loop indices must be persistent chare fields. |
+| SDAG `if`/`else`, `for`, `while`, `forall`, `overlap`, `case`, and `when name[ref](...)` | Source-ranged recursive SDAG lowering and receive registration | Phases 5.3–5.5 compare against handwritten Charm++ v8.0.0; suspension-sensitive loop indices must be persistent chare fields. |
 
 ## Significant remaining boundaries
 
@@ -45,13 +45,13 @@ This page summarizes current implementation and its boundaries.
 - **Source/build model:** One module per input, no dependency discovery,
   conditional parallel declarations rejected, and no generated `#line`
   mapping.
-- **SDAG remaining:** `when`, implicit `serial` segmentation, sequential waits, `if`/`else`, `for`, and reference matching have validated restricted implementations (Phases 5.1–5.3). `overlap`, `case`, `while`, `forall`, nested receives, general local-variable lifetime analysis, and other SDAG forms are deferred. Local declarations before suspension are conservatively rejected in some common cases, and typed `for` loop indices are explicitly rejected. See [SDAG variable lifetime](sdag-variable-lifetime.md) for the observed Charmxi limitation, the persistent-field workaround, and concurrency concerns.
+- **SDAG remaining:** `when`, implicit `serial`, sequential waits, `if`/`else`, `for`, `while`, `forall`, `overlap`, `case`, and reference matching have validated restricted implementations (Phases 5.1–5.5). Nested SDAG receives, comma-separated multi-receive dependencies, general local-variable lifetime analysis, and other SDAG forms remain deferred. Local declarations before suspension are conservatively rejected in some common cases, and typed `for` loop indices are explicitly rejected. See [SDAG variable lifetime](sdag-variable-lifetime.md) for the observed Charmxi limitation, the persistent-field workaround, and concurrency concerns.
 
 ## Assessment
 
 Phase 3 provides a **common declaration subset** validated by Charm++ v8.0.0,
-not complete `.ci` source compatibility. The next planned SDAG milestone is the Prefix Sum benchmark (Phase 5.4). Additional declaration support should be prioritized from
-benchmark blockers and runtime evidence.
+not complete `.ci` source compatibility. The four benchmark applications are now ported and validated (including Prefix Sum in Phase 5.4). Additional declaration support should be prioritized from
+observed benchmark blockers and runtime evidence.
 
 - [Detailed declaration audit and priorities](declaration-coverage-audit.md)
 - [Implementation roadmap](roadmap.md)
