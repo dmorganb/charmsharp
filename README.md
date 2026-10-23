@@ -82,6 +82,13 @@ Charm++-generated `CounterModule.decl.h` and `CounterModule.def.h`.
 The rest of the source is preserved byte-for-byte (apart from these replacements
 and the two generated include lines).
 
+## Language coverage
+
+For an exact inventory of supported declarations, remaining Charm++ entry
+attributes, return-type restrictions, messages/readonly declarations, and the
+SDAG backlog, see [language coverage](docs/language-coverage.md). For milestone
+sequencing see [the roadmap](docs/roadmap.md).
+
 ## Deliberate limitations
 
 - Multiple global-scope `chare`, `group`, `nodegroup`, and `array [ND] chare`
