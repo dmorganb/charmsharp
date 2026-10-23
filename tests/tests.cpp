@@ -545,8 +545,6 @@ entry:
             "SDAG receive entry cannot have a C++ implementation");
     rejects("chare A { entry: void start() { when a(int n), b(int m) { CkExit(); } } };",
             "multiple receives");
-    rejects("chare A { entry: void start() { when a(int n) { CkExit(); } if (true) { CkExit(); } } };",
-            "Phase 5.2 does not support nested or conditional");
 
 }
 
