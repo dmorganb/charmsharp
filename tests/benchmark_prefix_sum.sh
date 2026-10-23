@@ -47,7 +47,8 @@ validate() {
       END {
         if (bad || count != n) exit 1
       }
-    ' "$input" | sort -n > "$output"
+    ' "$input" > "$output.unsorted"
+    sort -n "$output.unsorted" > "$output"
     test "$(wc -l < "$output")" -eq "$n"
 }
 
