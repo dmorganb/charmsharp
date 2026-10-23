@@ -24,11 +24,12 @@ entry:
 chare Worker {
     CProxy_Main parent;
     int total = 0;
+    int step = 0;
 entry:
     Worker(CProxy_Main p) : parent(p) {}
     void start() {
         total = 0;
-        for (int step = 0; step < 2; ++step) {
+        for (step = 0; step < 2; ++step) {
             when deliver[step](int tag, int value) {
                 total += value;
             }
