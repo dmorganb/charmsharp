@@ -608,7 +608,8 @@ private:
                        tokens_[token].begin < first_byte + node.begin)
                     ++token;
                 if (is(token, "forall") && is(token + 1, "[") &&
-                    tokens_[token + 2].kind != Kind::Identifier)
+                    (tokens_[token + 2].kind != Kind::Identifier ||
+                     !is(token + 3, "]")))
                     fail(token + 2, "SDAG forall index must name a persistent chare field");
             }
             std::string lowered;
