@@ -108,7 +108,10 @@ public:
         if (cpp.empty() || cpp.back() != '\n') cpp += '\n';
         cpp += "#include \"" + module_ + ".def.h\"\n";
 
-        std::string ci = "module " + module_ + " {\n";
+        const bool has_mainchare = std::any_of(chares_.begin(), chares_.end(), [](const Chare& chare) {
+            return chare.kind == "mainchare";
+        });
+        std::string ci = std::string(has_mainchare ? "mainmodule " : "module ") + module_ + " {\n";
         for (const auto& chare : chares_) {
             ci += "    " + chare.kind + " " + chare.name + " {\n";
             for (const auto& signature : chare.entries)
