@@ -189,6 +189,32 @@ entry:
         throw std::runtime_error("Charm# entry attributes leaked into C++ output");
 }
 
+
+void reduction_target_entries() {
+    const auto output = charmsharp::translate(R"SRC(mainchare Main {
+entry:
+    Main(CkArgMsg* args) { delete args; }
+    [[charm::reductiontarget]] void printResult(int result) {
+        (void)result;
+        CkExit();
+    }
+};)SRC", "Reduction");
+    contains(output.interface_source, "entry [reductiontarget] void printResult(int result);");
+    contains(output.cpp_source, "void printResult(int result)");
+    ++checks;
+    if (output.cpp_source.find("[[charm::reductiontarget]]") != std::string::npos)
+        throw std::runtime_error("reductiontarget leaked into generated C++");
+
+    rejects("chare A { entry: [[charm::reductiontarget]] A(); };",
+            "entry constructors cannot");
+    rejects("chare A { entry: [[charm::reductiontarget]] [[charm::reductiontarget]] void f(); };",
+            "duplicate Charm++");
+    rejects("chare A { entry: [[charm::sync]] [[charm::reductiontarget]] void f(); };",
+            "reductiontarget cannot");
+    rejects("chare A { entry: [[charm::threaded]] [[charm::reductiontarget]] void f(); };",
+            "reductiontarget cannot");
+}
+
 void fixed_size_messages() {
     const auto output = charmsharp::translate(R"SRC(message Payload {
 public:
@@ -404,6 +430,7 @@ int main() {
     multiple_chares_and_mainchare();
     groups_and_arrays();
     attributed_entries();
+    reduction_target_entries();
     fixed_size_messages();
     readonly_globals();
     ordinary_inheritance();
