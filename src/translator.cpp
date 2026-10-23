@@ -427,16 +427,16 @@ private:
         std::vector<std::string> attributes;
         const auto entry_start = begin;
         while (is(begin, "[") && is(begin + 1, "[")) {
-            // [[charm::threaded]] / [[charm::sync]] map directly to .ci
+            // [[charm::threaded]], [[charm::sync]] and [[charm::reductiontarget]] map to .ci
             // attributes; remove them from the generated ordinary C++ class.
             if (begin + 7 >= end || !is(begin + 2, "charm") ||
                 !is(begin + 3, ":") || !is(begin + 4, ":") ||
                 tokens_[begin + 5].kind != Kind::Identifier ||
                 !is(begin + 6, "]") || !is(begin + 7, "]"))
-                fail(begin, "expected [[charm::threaded]] or [[charm::sync]]");
+                fail(begin, "expected [[charm::threaded]], [[charm::sync]] or [[charm::reductiontarget]]");
             const auto attribute = std::string(source_.substr(tokens_[begin + 5].begin,
                                                               tokens_[begin + 5].end - tokens_[begin + 5].begin));
-            if (attribute != "threaded" && attribute != "sync")
+            if (attribute != "threaded" && attribute != "sync" && attribute != "reductiontarget")
                 fail(begin + 5, "unsupported Charm++ entry attribute");
             if (std::find(attributes.begin(), attributes.end(), attribute) != attributes.end())
                 fail(begin, "duplicate Charm++ entry attribute");
@@ -450,6 +450,9 @@ private:
         const bool threaded = std::find(attributes.begin(), attributes.end(), "threaded") != attributes.end();
         const bool sync = std::find(attributes.begin(), attributes.end(), "sync") != attributes.end();
         if (threaded && sync) fail(entry_start, "threaded and sync cannot be combined");
+        const bool reductiontarget = std::find(attributes.begin(), attributes.end(), "reductiontarget") != attributes.end();
+        if (reductiontarget && (threaded || sync))
+            fail(entry_start, "reductiontarget cannot be combined with threaded or sync");
 
         std::size_t open = begin;
         while (open < end && !is(open, "(")) {
@@ -464,7 +467,7 @@ private:
                                                       tokens_[open - 1].end - tokens_[open - 1].begin));
         if (name == chare.name) {
             if (open != begin + 1) fail(begin, "constructor entry must have no return type");
-            if (!attributes.empty()) fail(entry_start, "entry constructors cannot have threaded or sync attributes");
+            if (!attributes.empty()) fail(entry_start, "entry constructors cannot have Charm++ entry attributes");
         } else if (!(open == begin + 2 && is(begin, "void"))) {
             // Charm++ synchronous entries can return a pointer to a message.
             if (!(sync && open == begin + 3 &&
