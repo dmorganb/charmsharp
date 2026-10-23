@@ -17,8 +17,12 @@ unsupported entry attributes, return types, and remaining declaration features.
 | 3.3.2 | Complete | Message inheritance, separately validated against Charm++ |
 | 3.3.3 | Complete | Local public chare-to-chare inheritance and proxy entry forwarding; cross-file and other base forms deferred |
 | 3.4 | Complete (audit) | Version-pinned declaration coverage matrix, remaining constructs, and prioritized backlog; no new lowering |
-| 4 | Next | Single SDAG `when`; implicit receive entry declaration; first safe `serial` lowering |
-| 5 | Planned | SDAG references, `overlap`, `case`, loops, lifetime diagnostics, runtime equivalence tests |
+| 4.0 | In progress | Port Primes to Charm# and compare compiled output against unmodified Charm++ reference in CI |
+| 4.1 | Planned | Support `[[charm::reductiontarget]]` and port Reduction |
+| 4.2 | Planned | Preserve constructor initializer lists in entry declarations |
+| 4.3 | Planned | Support variable-length marshalled entry parameters; port Jacobi2D |
+| 4.4 | Planned | Implement benchmark-driven SDAG constructs; port Prefix Sum |
+| 5 | Planned | Extended SDAG references, `overlap`, `case`, lifetime diagnostics and expanded equivalence tests |
 | Later | Planned | Variable-size messages, richer entries, multi-file/module integration, source mapping |
 
 ## Fixed-size message slice (phase 3.1)
