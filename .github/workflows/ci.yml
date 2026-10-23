@@ -34,3 +34,8 @@ jobs:
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
           command -v charmc
           make charm-check
+
+      - name: Build and execute Charm# Hello World
+        run: |
+          export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
+          make charm-run
