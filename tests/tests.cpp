@@ -135,6 +135,40 @@ entry:
     contains(output.cpp_source, "class Worker : public CBase_Worker");
 }
 
+void groups_and_arrays() {
+    const auto output = charmsharp::translate(R"SRC(mainchare Main {
+entry:
+    Main(CkArgMsg* args) { delete args; }
+};
+group Service {
+entry:
+    Service() {}
+    void log(int value) { (void)value; }
+};
+nodegroup NodeService {
+entry:
+    NodeService() {}
+};
+array [1D] chare Cell {
+entry:
+    Cell() {}
+    void update() {}
+};
+array [2 D] chare Grid {
+entry:
+    Grid() {}
+};
+)SRC", "Objects");
+    contains(output.interface_source, "group Service {\n        entry Service();\n        entry void log(int value);");
+    contains(output.interface_source, "nodegroup NodeService {\n        entry NodeService();");
+    contains(output.interface_source, "array [1D] Cell {\n        entry Cell();\n        entry void update();");
+    contains(output.interface_source, "array [2D] Grid {\n        entry Grid();");
+    contains(output.cpp_source, "class Service : public CBase_Service");
+    contains(output.cpp_source, "class NodeService : public CBase_NodeService");
+    contains(output.cpp_source, "class Cell : public CBase_Cell");
+    contains(output.cpp_source, "class Grid : public CBase_Grid");
+}
+
 void diagnostics() {
     rejects("chare A { entry: int x; };", "only simple method");
     rejects("chare A { entry: int value(); };", "only 'void name");
@@ -151,7 +185,10 @@ void diagnostics() {
     rejects("#if 0\nchare A {};\n#endif\n", "preprocessor conditional");
     rejects("chare A {\n#if FOO\nentry: void f();\n#endif\n};",
             "preprocessor directives between chare members");
-    rejects("array [1D] chare A {};", "later milestone");
+    rejects("array [0D] chare A {};", "array dimension");
+    rejects("array [2Q] chare A {};", "array dimension");
+    rejects("array [2D] A {};", "expected 'chare'");
+    rejects("group A {}; nodegroup A {};", "duplicate chare name");
     rejects("chare A { entry: void f() { auto p = R\"(unterminated); } };",
             "unterminated raw string");
 
@@ -171,6 +208,7 @@ int main() {
     preserves_ordinary_cpp_and_literal_braces();
     multiple_sections_and_definitions();
     multiple_chares_and_mainchare();
+    groups_and_arrays();
     diagnostics();
     std::cout << "PASS " << checks << " checks\n";
 }
