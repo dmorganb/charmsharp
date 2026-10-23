@@ -1,4 +1,4 @@
-#include "when.decl.h"
+#include "sdagwait.decl.h"
 #include <cstring>
 
 class Main : public CBase_Main {
@@ -28,4 +28,4 @@ public:
     Worker(CProxy_Main p) : parent(p) {}
 };
 
-#include "when.def.h"
+#include "sdagwait.def.h"
