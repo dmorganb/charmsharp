@@ -76,8 +76,10 @@ unsupported entry attributes, return types, and remaining declaration features.
    Test buffered, out-of-order and repeated deliveries across loop iterations.
 5. **5.4:** Port the pinned Prefix Sum benchmark; validate all expected prefix
    values rather than relying on asynchronous output line ordering.
-6. **5.5:** Expand syntax and diagnostics, particularly `overlap`, `case`,
-   `while`, `forall`, and cross-suspension variable lifetime.
+6. **5.5:** Lower SDAG `overlap`, `case`, `while` and `forall` recursively;
+   compare their generated `.ci` and runtime behavior against handwritten
+   Charm++ on both early and late message arrivals. Cross-suspension variable
+   lifetime analysis remains future work.
 
 Every emitting slice must compare its `.ci` structure to a handwritten
 Charm++ fixture and compile and execute through the pinned Charm++ CI toolchain.
@@ -168,3 +170,20 @@ see [SDAG variable lifetime](sdag-variable-lifetime.md).
   two-core CI runners. Original jittered sends vary communication timing.
 - **Complete:** the C++20 tests and Charm++ v8.0.0 integration job pass for
   the pinned reference and transpiled port, with every prefix checked.
+
+### Phase 5.5 extended SDAG controls
+
+- `while (condition) { ... }` preserves its C++ condition and recursively lowers
+  its body; a `when` may suspend between iterations.
+- `overlap { ... }` lowers independent child flows recursively and waits for
+  all branches. `case { when ... when ... }` lowers alternative receives, of
+  which Charm++ commits to one satisfied branch.
+- `forall [index] (min:max, stride) { ... }` preserves Charm++'s **inclusive**
+  upper bound and requires the bracket to contain exactly one identifier.
+  The index must be a persistent chare field as expected by Charmxi; the
+  transpiler does not currently perform full member lookup or lifetime analysis.
+- Receive bodies currently accept ordinary C++ work, not nested SDAG waits;
+  one `when` signature may not list multiple comma-separated receives.
+- The pinned Charm++ integration test compares an independently handwritten
+  `.ci` implementation and Charm# output in both queued and late-arrival
+  scenarios. It covers all four constructs in one executable.
