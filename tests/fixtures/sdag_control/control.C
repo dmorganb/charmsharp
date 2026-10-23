@@ -7,13 +7,13 @@ public:
         delete msg;
         CProxy_Worker worker = CProxy_Worker::ckNew(thisProxy);
         if (early) {
-            worker.deliver(1, 22);
-            worker.deliver(0, 20);
+            worker.deliver(1, 4);
+            worker.deliver(0, 2);
             worker.start();
         } else {
             worker.start();
-            worker.deliver(1, 22);
-            worker.deliver(0, 20);
+            worker.deliver(1, 4);
+            worker.deliver(0, 2);
         }
     }
     void done(int value) {
