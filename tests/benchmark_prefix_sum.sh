@@ -35,6 +35,8 @@ validate() {
       /^Prefix\[/ {
         if (NF != 6 || $2 != "=" || $4 != "(expected" || $6 != "OK") bad = 1
         idx = substr($1, 8, length($1) - 8)
+        # Force numeric comparisons: awk may compare substr() and -v values as strings.
+        idx += 0
         val = $3
         expected_value = $5
         sub(/\)$/, "", expected_value)
