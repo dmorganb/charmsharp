@@ -14,7 +14,7 @@ cp tests/fixtures/sdag_control/control.ci tests/fixtures/sdag_control/control.C 
 )
 "$repo/$tool" --module control --out-dir "$tmp/generated" examples/SdagControlFlow.csh
 grep -Fq 'when deliver[step](int tag, int value) serial {' "$tmp/generated/control.ci"
-grep -Fq 'for (int step = 0; step < 2; ++step)' "$tmp/generated/control.ci"
+grep -Fq 'for (step = 0; step < 2; ++step)' "$tmp/generated/control.ci"
 grep -Fq 'if (total == 42)' "$tmp/generated/control.ci"
 test "$(grep -Fc 'entry void deliver(int tag, int value);' "$tmp/generated/control.ci")" -eq 1
 (
