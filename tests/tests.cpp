@@ -592,10 +592,10 @@ entry:
     void start() {
         for (step = 0; step < 2; ++step) {
             when deliver[step](int tag, int value) {
-                total += value;
+                total = total * 10 + value;
             }
         }
-        if (total == 42) {
+        if (total == 24) {
             finish(total);
         } else {
             finish(-1);
@@ -605,7 +605,7 @@ entry:
     contains(generated.interface_source, "entry void deliver(int tag, int value);");
     contains(generated.interface_source, "when deliver[step](int tag, int value) serial {");
     contains(generated.interface_source, "for (step = 0; step < 2; ++step)");
-    contains(generated.interface_source, "if (total == 42)");
+    contains(generated.interface_source, "if (total == 24)");
     contains(generated.interface_source, "finish(-1);");
     contains(generated.cpp_source, "Worker_SDAG_CODE");
 
