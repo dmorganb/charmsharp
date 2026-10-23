@@ -144,6 +144,7 @@ private:
     std::vector<std::string> readonly_;
     std::vector<std::string> readonly_names_;
     std::vector<std::string> parallel_type_names_;
+    std::vector<std::string> message_type_names_;
     std::vector<std::pair<std::string, std::size_t>> ordinary_type_names_;
 
     bool is(std::size_t i, std::string_view word) const {
@@ -168,6 +169,9 @@ private:
                 tokens_[i + 1].kind == Kind::Identifier && is(i + 2, "{")) {
                 ordinary_type_names_.emplace_back(token_text(i + 1), tokens_[i].begin);
             }
+            if (is(i, "message") && i + 1 < tokens_.size() &&
+                tokens_[i + 1].kind == Kind::Identifier)
+                message_type_names_.push_back(token_text(i + 1));
             std::size_t name = i + 1;
             if (is(i, "array") && is(i + 1, "[")) {
                 const auto bracket = matching(i + 1, "[", "]", tokens_.size());
@@ -202,6 +206,55 @@ private:
                std::any_of(chares_.begin(), chares_.end(), [&](const Chare& chare) {
                    return chare.name == name;
                });
+    }
+
+    struct Bases {
+        std::size_t brace;
+        std::string cpp;
+    };
+
+    Bases parse_ordinary_bases(std::size_t after_name, std::size_t declaration,
+                               bool is_message) const {
+        Bases result{after_name, ""};
+        if (!is(after_name, ":")) return result;
+        auto i = after_name + 1;
+        std::vector<std::string> seen;
+        while (i < tokens_.size() && !is(i, "{")) {
+            const auto begin = i;
+            if (is(i, "virtual")) fail(i, "virtual base inheritance is deferred");
+            if (is(i, "public") || is(i, "private") || is(i, "protected")) ++i;
+            if (i >= tokens_.size() || tokens_[i].kind != Kind::Identifier)
+                fail(i, "expected a simple base class name");
+            const auto base = token_text(i);
+            if (is(i, "virtual")) fail(i, "virtual base inheritance is deferred");
+            if (std::find(seen.begin(), seen.end(), base) != seen.end())
+                fail(i, "duplicate base class");
+            seen.push_back(base);
+            if (is_message && std::find(message_type_names_.begin(), message_type_names_.end(), base) !=
+                                  message_type_names_.end())
+                fail(i, "message-to-message inheritance is deferred");
+            if (std::find(parallel_type_names_.begin(), parallel_type_names_.end(), base) !=
+                parallel_type_names_.end())
+                fail(i, "parallel-base inheritance is deferred");
+            if (std::none_of(ordinary_type_names_.begin(), ordinary_type_names_.end(),
+                             [&](const auto& type) {
+                                 return type.first == base && type.second < tokens_[declaration].begin;
+                             }))
+                fail(i, "unresolved or later-defined C++ base type");
+            ++i;
+            if (!result.cpp.empty()) result.cpp += ", ";
+            result.cpp += std::string(trim(source_.substr(
+                tokens_[begin].begin, tokens_[i - 1].end - tokens_[begin].begin)));
+            if (is(i, ",")) {
+                ++i;
+                if (is(i, "{")) fail(i, "expected a base class after ','");
+                continue;
+            }
+            if (!is(i, "{")) fail(i, "complex base specifiers are deferred");
+        }
+        result.brace = i;
+        if (result.cpp.empty()) fail(after_name, "expected a base class");
+        return result;
     }
 
     std::size_t parse_readonly(std::size_t keyword) {
@@ -245,8 +298,8 @@ private:
         const std::string message_name(source_.substr(tokens_[name].begin,
                                                       tokens_[name].end - tokens_[name].begin));
         if (name_used(message_name)) fail(name, "duplicate Charm# type name");
-        const auto brace = name + 1;
-        if (is(brace, ":")) fail(brace, "message inheritance is deferred");
+        const auto bases = parse_ordinary_bases(name + 1, keyword, true);
+        const auto brace = bases.brace;
         if (!is(brace, "{")) fail(brace, "expected '{' after message type name");
         const auto close = matching(brace, "{", "}", tokens_.size());
         if (!is(close + 1, ";")) fail(close, "expected ';' after message body");
@@ -262,8 +315,9 @@ private:
                 fail(i, "entry: is only valid in parallel types");
         }
         edits_.push_back({tokens_[keyword].begin, tokens_[name].begin, "class "});
-        edits_.push_back({tokens_[name].end, tokens_[name].end,
-                          " : public CMessage_" + message_name});
+        edits_.push_back({tokens_[name].end, tokens_[brace].begin,
+                          " : public CMessage_" + message_name +
+                          (bases.cpp.empty() ? " " : ", " + bases.cpp + " ")});
         messages_.push_back(message_name);
         return close + 2;
     }
@@ -300,45 +354,8 @@ private:
         if (kind == "mainchare" && std::any_of(chares_.begin(), chares_.end(), [](const Chare& chare) {
             return chare.kind == "mainchare";
         })) fail(keyword, "only one mainchare is allowed per module");
-        auto brace = name + 1;
-        std::string ordinary_bases;
-        std::vector<std::string> seen_bases;
-        if (is(brace, ":")) {
-            auto i = brace + 1;
-            while (i < tokens_.size() && !is(i, "{")) {
-                const auto spec_begin = i;
-                if (is(i, "virtual")) fail(i, "virtual base inheritance is deferred");
-                if (is(i, "public") || is(i, "private") || is(i, "protected")) ++i;
-                if (i >= tokens_.size() || tokens_[i].kind != Kind::Identifier)
-                    fail(i, "expected a simple base class name");
-                const auto base_name = token_text(i);
-                if (is(i, "virtual")) fail(i, "virtual base inheritance is deferred");
-                if (std::find(seen_bases.begin(), seen_bases.end(), base_name) != seen_bases.end())
-                    fail(i, "duplicate base class");
-                seen_bases.push_back(base_name);
-                if (std::find(parallel_type_names_.begin(), parallel_type_names_.end(), base_name) !=
-                    parallel_type_names_.end())
-                    fail(i, "parallel-base inheritance is deferred");
-                if (std::none_of(ordinary_type_names_.begin(), ordinary_type_names_.end(),
-                                 [&](const auto& base) {
-                                     return base.first == base_name && base.second < tokens_[keyword].begin;
-                                 }))
-                    fail(i, "unresolved or later-defined C++ base type");
-                ++i;
-                const auto spec_end = i;
-                if (!ordinary_bases.empty()) ordinary_bases += ", ";
-                ordinary_bases += std::string(trim(source_.substr(
-                    tokens_[spec_begin].begin, tokens_[spec_end - 1].end - tokens_[spec_begin].begin)));
-                if (is(i, ",")) {
-                    ++i;
-                    if (is(i, "{")) fail(i, "expected a base class after ','");
-                    continue;
-                }
-                if (!is(i, "{")) fail(i, "complex base specifiers are deferred");
-            }
-            brace = i;
-            if (ordinary_bases.empty()) fail(name + 1, "expected a base class");
-        }
+        const auto bases = parse_ordinary_bases(name + 1, keyword, false);
+        const auto brace = bases.brace;
         if (!is(brace, "{")) fail(brace, "expected '{' after parallel type name");
         const auto close = matching(brace, "{", "}", tokens_.size());
         if (!is(close + 1, ";")) fail(close, "expected ';' after chare body");
@@ -346,7 +363,7 @@ private:
         edits_.push_back({tokens_[keyword].begin, tokens_[name].begin, "class "});
         edits_.push_back({tokens_[name].end, tokens_[brace].begin,
                           " : public CBase_" + chare_name +
-                          (ordinary_bases.empty() ? " " : ", " + ordinary_bases + " ")});
+                          (bases.cpp.empty() ? " " : ", " + bases.cpp + " ")});
         chares_.push_back({kind, chare_name, {}});
         parse_members(brace + 1, close, chares_.back());
         return close + 2;
