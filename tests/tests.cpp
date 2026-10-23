@@ -268,6 +268,26 @@ entry:
     contains(default_access.cpp_source, "class A : public CBase_A, Domain {");
 }
 
+void message_inheritance() {
+    const auto output = charmsharp::translate(R"SRC(struct Metadata {
+    int origin = 40;
+};
+class Flags { protected: int adjustment = 2; };
+message Payload : public Metadata, protected Flags {
+public:
+    int result() const { return origin + adjustment; }
+};
+mainchare Main { entry: Main(CkArgMsg* args) { delete args; } };
+)SRC", "MessageBases");
+    contains(output.interface_source, "message Payload;");
+    contains(output.cpp_source,
+             "class Payload : public CMessage_Payload, public Metadata, protected Flags {");
+    contains(output.cpp_source, "int result() const { return origin + adjustment; }");
+    ++checks;
+    if (output.interface_source.find("Metadata") != std::string::npos)
+        throw std::runtime_error("ordinary message base leaked into .ci");
+}
+
 void diagnostics() {
     rejects("chare A { entry: int x; };", "only simple method");
     rejects("chare A { entry: int value(); };", "must return void");
@@ -308,7 +328,14 @@ void diagnostics() {
     rejects("message { int value; };", "message type name");
     rejects("message M;", "expected '{'");
     rejects("message M { int value; }", "expected ';'");
-    rejects("message M : Base {};", "message inheritance");
+    rejects("message M : Base {};", "unresolved or later-defined");
+    rejects("message A {}; message B : public A {};", "message-to-message");
+    rejects("message B : public A {}; message A {};", "message-to-message");
+    rejects("chare Worker {}; message M : Worker {};", "parallel-base");
+    rejects("struct Base {}; message M : virtual Base {};", "virtual base");
+    rejects("struct Base {}; message M : Base, Base {};", "duplicate base");
+    rejects("struct Base {}; message M : Base<int> {};", "complex base");
+    rejects("message M : public Later {}; struct Later {};", "later-defined");
     rejects("message M { int values[]; };", "variable-size message arrays");
     rejects("message M { entry: void foo(); };", "entry: is only valid");
     rejects("message M {}; message M {};", "duplicate");
@@ -347,6 +374,7 @@ int main() {
     fixed_size_messages();
     readonly_globals();
     ordinary_inheritance();
+    message_inheritance();
     diagnostics();
     std::cout << "PASS " << checks << " checks\n";
 }
