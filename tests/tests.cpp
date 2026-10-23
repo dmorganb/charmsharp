@@ -561,7 +561,7 @@ void diagnostics() {
     rejects("chare A { entry: [[charm::threaded]] [[charm::sync]] void f(); };", "cannot be combined");
     rejects("chare A { entry: [[charm::threaded]] [[charm::threaded]] void f(); };", "duplicate Charm++");
     rejects("chare A { entry: [[other::threaded]] void f(); };", "expected [[charm::");
-    rejects("chare A { entry: void f() { when ping() { } } };", "SDAG");
+    rejects("chare A { entry: void f() { when ping() {} when pong() {} } };", "Phase 5.1");
     rejects("chare A : public Base { entry: void f(); };", "unresolved or later-defined");
     rejects("chare A : public Base {}; chare Base {};", "defined before derived");
     rejects("chare Base {}; chare A : Base {};", "explicit public");
