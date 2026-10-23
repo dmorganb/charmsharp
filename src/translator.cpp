@@ -88,12 +88,17 @@ public:
                 if (conditional_depth != 0)
                     fail(i, "a parallel type inside a preprocessor conditional is not supported");
                 i = parse_chare(i) - 1;
-            } else if (depth == 0 &&
-                       (is(i, "message") || is(i, "readonly"))) {
+            } else if (is(i, "message")) {
+                if (depth != 0) fail(i, "nested/namespace messages are not supported");
+                if (conditional_depth != 0)
+                    fail(i, "a message inside a preprocessor conditional is not supported");
+                i = parse_message(i) - 1;
+            } else if (depth == 0 && is(i, "readonly")) {
                 fail(i, "this Charm# declaration is reserved for a later milestone");
             }
         }
-        if (chares_.empty()) throw Diagnostic("expected a top-level parallel type declaration", 0);
+        if (chares_.empty() && messages_.empty())
+            throw Diagnostic("expected a top-level Charm# declaration", 0);
 
         std::string cpp(source_);
         // Applying backwards keeps all source offsets stable.
@@ -111,6 +116,8 @@ public:
             return chare.kind == "mainchare";
         });
         std::string ci = std::string(has_mainchare ? "mainmodule " : "module ") + module_ + " {\n";
+        for (const auto& message : messages_)
+            ci += "    message " + message + ";\n";
         for (const auto& chare : chares_) {
             ci += "    " + chare.kind + " " + chare.name + " {\n";
             for (const auto& signature : chare.entries)
@@ -127,6 +134,7 @@ private:
     std::vector<Token> tokens_;
     std::vector<Edit> edits_;
     std::vector<Chare> chares_;
+    std::vector<std::string> messages_;
 
     bool is(std::size_t i, std::string_view word) const {
         return i < tokens_.size() &&
@@ -146,6 +154,43 @@ private:
             else if (is(i, right) && --nesting == 0) return i;
         }
         fail(open, "unbalanced '" + std::string(left) + "' delimiter");
+    }
+
+    bool name_used(std::string_view name) const {
+        return std::find(messages_.begin(), messages_.end(), name) != messages_.end() ||
+               std::any_of(chares_.begin(), chares_.end(), [&](const Chare& chare) {
+                   return chare.name == name;
+               });
+    }
+
+    std::size_t parse_message(std::size_t keyword) {
+        const auto name = keyword + 1;
+        if (name >= tokens_.size() || tokens_[name].kind != Kind::Identifier)
+            fail(keyword, "expected a message type name");
+        const std::string message_name(source_.substr(tokens_[name].begin,
+                                                      tokens_[name].end - tokens_[name].begin));
+        if (name_used(message_name)) fail(name, "duplicate Charm# type name");
+        const auto brace = name + 1;
+        if (is(brace, ":")) fail(brace, "message inheritance is deferred");
+        if (!is(brace, "{")) fail(brace, "expected '{' after message type name");
+        const auto close = matching(brace, "{", "}", tokens_.size());
+        if (!is(close + 1, ";")) fail(close, "expected ';' after message body");
+
+        // A plain .ci declaration generates the CMessage_ base; fixed-size
+        // fields and ordinary C++ methods remain verbatim in the class body.
+        // Reject unsized array fields: those require the special variable-size
+        // .ci metadata and allocation semantics not yet implemented here.
+        for (auto i = brace + 1; i < close; ++i) {
+            if (is(i, "[") && is(i + 1, "]"))
+                fail(i, "variable-size message arrays are deferred");
+            if (is(i, "entry") && is(i + 1, ":"))
+                fail(i, "entry: is only valid in parallel types");
+        }
+        edits_.push_back({tokens_[keyword].begin, tokens_[name].begin, "class "});
+        edits_.push_back({tokens_[name].end, tokens_[name].end,
+                          " : public CMessage_" + message_name});
+        messages_.push_back(message_name);
+        return close + 2;
     }
 
     std::size_t parse_chare(std::size_t keyword) {
@@ -176,9 +221,7 @@ private:
             fail(keyword, "expected a parallel type name");
         const std::string chare_name(source_.substr(tokens_[name].begin,
                                                     tokens_[name].end - tokens_[name].begin));
-        if (std::any_of(chares_.begin(), chares_.end(), [&](const Chare& chare) {
-            return chare.name == chare_name;
-        })) fail(name, "duplicate chare name");
+        if (name_used(chare_name)) fail(name, "duplicate chare name or Charm# type name");
         if (kind == "mainchare" && std::any_of(chares_.begin(), chares_.end(), [](const Chare& chare) {
             return chare.kind == "mainchare";
         })) fail(keyword, "only one mainchare is allowed per module");
