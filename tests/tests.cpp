@@ -580,8 +580,6 @@ entry:
             "local declaration before an SDAG wait");
     rejects("chare A { entry: void f() { when ping(int n), pong(int m) {} } };",
             "multiple receives");
-    rejects("chare A { entry: void f() { when ping() {} overlap {} } };",
-            "Phase 5.3 does not support");
 }
 
 void sdag_if_for_ref_matching() {
