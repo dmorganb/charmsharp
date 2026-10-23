@@ -587,9 +587,10 @@ entry:
 void sdag_if_for_ref_matching() {
     const auto generated = charmsharp::translate(R"SRC(chare Worker {
     int total = 0;
+    int step = 0;
 entry:
     void start() {
-        for (int step = 0; step < 2; ++step) {
+        for (step = 0; step < 2; ++step) {
             when deliver[step](int tag, int value) {
                 total += value;
             }
@@ -603,7 +604,7 @@ entry:
 };)SRC", "Control");
     contains(generated.interface_source, "entry void deliver(int tag, int value);");
     contains(generated.interface_source, "when deliver[step](int tag, int value) serial {");
-    contains(generated.interface_source, "for (int step = 0; step < 2; ++step)");
+    contains(generated.interface_source, "for (step = 0; step < 2; ++step)");
     contains(generated.interface_source, "if (total == 42)");
     contains(generated.interface_source, "finish(-1);");
     contains(generated.cpp_source, "Worker_SDAG_CODE");
