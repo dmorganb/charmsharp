@@ -22,7 +22,7 @@ unsupported entry attributes, return types, and remaining declaration features.
 | 4.2 | Complete | Structurally parse constructor initializer lists and retain them verbatim in C++ while emitting signature-only `.ci` entries; validate with Charm++ runtime |
 | 4.3 | Complete | Implement entry `T data[n]` marshalling syntax: preserve bounds in `.ci`, lower C++ signatures to `T* data`, validate named/literal bounds and remote copying; port Jacobi2D |
 | 5.0 | Complete | Recognize SDAG bodies and build source-ranged structural nodes; no SDAG emission |
-| 5.1 | In progress | Single `when`, receive entry registration, SDAG C++ glue, and runtime comparison |
+| 5.1 | Complete (single-when slice) | Single `when`, receive entry registration, SDAG C++ glue, and runtime comparison |
 | 5.2 | Planned | Implicit `serial` segmentation and statement-boundary preservation |
 | 5.3 | Planned | SDAG `if`, `for`, reference-matched `when` and asynchronous behavior tests |
 | 5.4 | Planned | Port Prefix Sum, verify every expected prefix with varying PEs and message arrival orders |
