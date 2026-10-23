@@ -24,7 +24,7 @@ unsupported entry attributes, return types, and remaining declaration features.
 | 5.0 | Complete | Recognize SDAG bodies and build source-ranged structural nodes; no SDAG emission |
 | 5.1 | Complete (single-when slice) | Single `when`, receive entry registration, SDAG C++ glue, and runtime comparison |
 | 5.2 | Complete (sequential subset) | Implicit `serial` segmentation and statement-boundary preservation |
-| 5.3 | Planned | SDAG `if`, `for`, reference-matched `when` and asynchronous behavior tests |
+| 5.3 | In progress | SDAG `if`, `for`, reference-matched `when` and asynchronous behavior tests |
 | 5.4 | Planned | Port Prefix Sum, verify every expected prefix with varying PEs and message arrival orders |
 | 5.5 | Planned | Extend to `overlap`, `case`, `while`, `forall`, and lifetime diagnostics |
 | Later | Planned | Variable-size messages, richer entries, multi-file/module integration, source mapping |
@@ -121,3 +121,17 @@ Charm++ fixture and compile and execute through the pinned Charm++ CI toolchain.
   deferred. Values that must persist across waits should be chare fields.
 - Compare with a handwritten Charm++ fixture that contains serial work before,
   between and after two waits, for both queued and post-wait arrivals.
+
+### Phase 5.3 supported subset
+
+- Lower source-ranged SDAG `if`/`else` and `for` bodies recursively, preserving
+  ordinary C++ statements in implicit `serial` blocks and explicit `serial` verbatim.
+- Recognize `when receive[expression](...)` reference matching and retain the
+  reference expression in `.ci`; register each receive entry only once even if
+  used in multiple `when` sites. For parameter-marshalled entries Charm++ uses
+  the first argument to match the reference expression.
+- Test two messages sent in reverse iteration order, both queued before
+  `start()` and delivered after `start()`, against a handwritten Charm++ fixture.
+- Nested `when` bodies, `while`, `forall`, `overlap`, and `case` are still
+  deferred. The compiler does not implement C++ variable capture or promote
+  pre-wait local variables into persistent storage.
