@@ -27,6 +27,7 @@ This page summarizes current implementation and its boundaries.
   `sync`, and `reductiontarget`; see the audit for the exact pinned attribute inventory.
   `expedited` appears in current documentation but needs a pinned-version
   compatibility check.
+- **Marshalled entry arrays (Phase 4.3):** The language design now accepts `T data[n]` in entry signatures to retain the Charm++ `.ci` element-count metadata while lowering the C++ signature to `T* data`. Recognition, transformation, and runtime verification are not implemented yet. Bare pointers do not imply an array length; bounds must be valid for the pinned Charmxi version.
 - **Entry methods:** Nontrivial return types, qualifiers, constructor
   templates, default arguments and local entry semantics
   are deferred. Constructor initializer lists are supported for entry definitions with simple or qualified base/member designators and parenthesized or braced initializers. We do not perform full C++ type resolution or PUP validation.
