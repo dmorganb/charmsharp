@@ -128,6 +128,7 @@ entry:
   void ping(int value) { (void)value; }
 };
 )SRC", "Hello");
+    contains(output.interface_source, "mainmodule Hello {");
     contains(output.interface_source, "mainchare Main {\n        entry Main(CkArgMsg* args);");
     contains(output.interface_source, "chare Worker {\n        entry Worker();\n        entry void ping(int value);");
     contains(output.cpp_source, "class Main : public CBase_Main");
