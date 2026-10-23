@@ -93,11 +93,14 @@ public:
                 if (conditional_depth != 0)
                     fail(i, "a message inside a preprocessor conditional is not supported");
                 i = parse_message(i) - 1;
-            } else if (depth == 0 && is(i, "readonly")) {
-                fail(i, "this Charm# declaration is reserved for a later milestone");
+            } else if (is(i, "readonly")) {
+                if (depth != 0) fail(i, "readonly declarations must be at global scope");
+                if (conditional_depth != 0)
+                    fail(i, "readonly inside a preprocessor conditional is not supported");
+                i = parse_readonly(i) - 1;
             }
         }
-        if (chares_.empty() && messages_.empty())
+        if (chares_.empty() && messages_.empty() && readonly_.empty())
             throw Diagnostic("expected a top-level Charm# declaration", 0);
 
         std::string cpp(source_);
@@ -118,6 +121,8 @@ public:
         std::string ci = std::string(has_mainchare ? "mainmodule " : "module ") + module_ + " {\n";
         for (const auto& message : messages_)
             ci += "    message " + message + ";\n";
+        for (const auto& declaration : readonly_)
+            ci += "    readonly " + declaration + ";\n";
         for (const auto& chare : chares_) {
             ci += "    " + chare.kind + " " + chare.name + " {\n";
             for (const auto& signature : chare.entries)
@@ -135,6 +140,8 @@ private:
     std::vector<Edit> edits_;
     std::vector<Chare> chares_;
     std::vector<std::string> messages_;
+    std::vector<std::string> readonly_;
+    std::vector<std::string> readonly_names_;
 
     bool is(std::size_t i, std::string_view word) const {
         return i < tokens_.size() &&
@@ -158,9 +165,44 @@ private:
 
     bool name_used(std::string_view name) const {
         return std::find(messages_.begin(), messages_.end(), name) != messages_.end() ||
+               std::find(readonly_names_.begin(), readonly_names_.end(), name) != readonly_names_.end() ||
                std::any_of(chares_.begin(), chares_.end(), [&](const Chare& chare) {
                    return chare.name == name;
                });
+    }
+
+    std::size_t parse_readonly(std::size_t keyword) {
+        // Charmxi accepts a single-token type, optionally followed by a
+        // compile-time sized array. In this first slice, reject pointers,
+        // references, initializers, and multi-token C++ type expressions.
+        const auto type = keyword + 1;
+        const auto name = type + 1;
+        if (type >= tokens_.size() || tokens_[type].kind != Kind::Identifier ||
+            name >= tokens_.size() || tokens_[name].kind != Kind::Identifier)
+            fail(keyword, "expected readonly Type name; (single-token type)");
+        const std::string variable(source_.substr(tokens_[name].begin,
+                                                  tokens_[name].end - tokens_[name].begin));
+        if (name_used(variable)) fail(name, "duplicate Charm# type or readonly name");
+        auto end = name + 1;
+        if (is(end, "[")) {
+            const auto bound = end + 1;
+            if (bound >= tokens_.size() || tokens_[bound].kind != Kind::Number ||
+                !is(bound + 1, "]"))
+                fail(end, "readonly arrays require a fixed numeric bound");
+            const auto value = source_.substr(tokens_[bound].begin,
+                                              tokens_[bound].end - tokens_[bound].begin);
+            if (value.empty() || value[0] == '0' ||
+                !std::all_of(value.begin(), value.end(), [](char ch) { return ch >= '0' && ch <= '9'; }))
+                fail(bound, "readonly array bound must be a positive decimal integer");
+            end = bound + 2;
+        }
+        if (!is(end, ";"))
+            fail(end, "readonly initializers, pointers and complex declarators are deferred");
+        readonly_.emplace_back(trim(source_.substr(tokens_[type].begin,
+                                                   tokens_[end].begin - tokens_[type].begin)));
+        readonly_names_.push_back(variable);
+        edits_.push_back({tokens_[keyword].begin, tokens_[type].begin, ""});
+        return end + 1;
     }
 
     std::size_t parse_message(std::size_t keyword) {
