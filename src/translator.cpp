@@ -426,7 +426,16 @@ private:
         chares_.push_back({kind, chare_name, bases.parallel, {}, {}, {}, {}, false});
         parse_members(brace + 1, close, chares_.back());
         auto& chare = chares_.back();
+        std::vector<Chare::Receive> registered_receives;
         for (const auto& receive : chare.receives) {
+            const auto repeated = std::find_if(registered_receives.begin(), registered_receives.end(),
+                [&](const Chare::Receive& registered) { return registered.name == receive.name; });
+            if (repeated != registered_receives.end()) {
+                if (repeated->signature != receive.signature)
+                    fail(receive.token, "inconsistent SDAG receive signatures");
+                continue;
+            }
+            registered_receives.push_back(receive);
             auto existing = std::find_if(chare.methods.begin(), chare.methods.end(),
                                          [&](const Chare::Method& method) {
                                              return method.name == receive.name;
@@ -517,6 +526,129 @@ private:
             first = i + 1;
         }
         return found;
+    }
+
+    // Reassemble only SDAG control structure. Ordinary C++ expression text
+    // is copied directly from the original byte ranges.
+    std::string lower_sdag_nodes(std::string_view text, std::size_t first_byte,
+                                 const std::vector<detail::SdagNode>& nodes, Chare& chare) {
+        std::string result;
+        for (std::size_t n = 0; n < nodes.size();) {
+            const auto& node = nodes[n];
+            if (node.kind == detail::SdagKind::Ordinary) {
+                const bool followed_by_wait = std::any_of(
+                    nodes.begin() + static_cast<std::ptrdiff_t>(n + 1),
+                    nodes.end(), [](const detail::SdagNode& statement) {
+                        return statement.kind == detail::SdagKind::When ||
+                               statement.kind == detail::SdagKind::For ||
+                               statement.kind == detail::SdagKind::If;
+                    });
+                if (followed_by_wait) {
+                    auto token = std::size_t{0};
+                    while (token < tokens_.size() &&
+                           tokens_[token].begin < first_byte + node.begin)
+                        ++token;
+                    const auto first = token_text(token);
+                    if (first == "int" || first == "float" || first == "double" ||
+                        first == "bool" || first == "char" || first == "auto" ||
+                        first == "const" || first == "unsigned" ||
+                        first == "signed" || first == "short" || first == "long")
+                        fail(token, "local declaration before an SDAG wait requires a chare field");
+                }
+                auto last = n;
+                while (last + 1 < nodes.size() &&
+                       nodes[last + 1].kind == detail::SdagKind::Ordinary)
+                    ++last;
+                result += "serial {\n";
+                result += std::string(text.substr(node.begin, nodes[last].end - node.begin));
+                result += "\n}\n";
+                n = last + 1;
+                continue;
+            }
+            result += lower_sdag_node(text, first_byte, node, chare);
+            result += "\n";
+            ++n;
+        }
+        return result;
+    }
+
+    std::string lower_sdag_node(std::string_view text, std::size_t first_byte,
+                                const detail::SdagNode& node, Chare& chare) {
+        if (node.kind == detail::SdagKind::Ordinary)
+            return "serial { " + std::string(text.substr(node.begin, node.end - node.begin)) + " }";
+        if (node.kind == detail::SdagKind::Serial)
+            return std::string(text.substr(node.begin, node.end - node.begin));
+        if (node.kind == detail::SdagKind::Block) {
+            return "{\n" + lower_sdag_nodes(text, first_byte, node.children, chare) + "\n}";
+        }
+        if (node.kind == detail::SdagKind::If || node.kind == detail::SdagKind::For) {
+            if (node.kind == detail::SdagKind::For) {
+                auto token = std::size_t{0};
+                while (token < tokens_.size() &&
+                       tokens_[token].begin < first_byte + node.begin)
+                    ++token;
+                if (is(token, "for") && is(token + 1, "(")) {
+                    const auto type = token_text(token + 2);
+                    if (type == "int" || type == "auto" || type == "long" ||
+                        type == "unsigned" || type == "short" || type == "std")
+                        fail(token + 2, "SDAG for index must be a persistent chare field");
+                }
+            }
+            std::string lowered;
+            auto cursor = node.begin;
+            for (const auto& child : node.children) {
+                lowered += std::string(text.substr(cursor, child.begin - cursor));
+                lowered += lower_sdag_node(text, first_byte, child, chare);
+                cursor = child.end;
+            }
+            lowered += std::string(text.substr(cursor, node.end - cursor));
+            return lowered;
+        }
+        if (node.kind != detail::SdagKind::When)
+            throw Diagnostic("Phase 5.3 does not support this SDAG control statement",
+                             first_byte + node.begin);
+
+        auto receive = std::size_t{0};
+        while (receive < tokens_.size() &&
+               tokens_[receive].begin < first_byte + node.begin)
+            ++receive;
+        if (!is(receive, "when"))
+            fail(receive, "expected a direct SDAG when statement");
+        ++receive;
+        if (receive >= tokens_.size() || tokens_[receive].kind != Kind::Identifier)
+            fail(receive, "expected SDAG receive entry name");
+        const auto receive_name = token_text(receive++);
+        if (is(receive, "[")) {
+            // Reference matching is evaluated by Charmxi; the first entry
+            // argument carries the reference number for marshalled entries.
+            receive = matching(receive, "[", "]", tokens_.size()) + 1;
+        }
+        if (!is(receive, "("))
+            fail(receive, "expected SDAG receive parameters");
+        const auto receive_close = matching(receive, "(", ")", tokens_.size());
+        if (is(receive_close + 1, ","))
+            fail(receive_close + 1, "Phase 5.3 does not support multiple receives");
+        const auto receive_signature = "void " + receive_name + std::string(
+            source_.substr(tokens_[receive].begin,
+                           tokens_[receive_close].end - tokens_[receive].begin));
+        const auto serial_or_brace = receive_close + 1;
+        const bool explicit_serial = is(serial_or_brace, "serial");
+        const auto receive_brace = explicit_serial ? serial_or_brace + 1 : serial_or_brace;
+        if (!is(receive_brace, "{"))
+            fail(receive_brace, "expected when receive body");
+        const auto receive_end = matching(receive_brace, "{", "}", tokens_.size());
+        for (auto i = receive_brace + 1; i < receive_end; ++i) {
+            if (is(i, "when") || is(i, "overlap") || is(i, "forall") ||
+                (is(i, "case") && is(i + 1, "{")))
+                fail(i, "nested SDAG awaits are deferred");
+        }
+        std::string lowered(text.substr(node.begin, node.end - node.begin));
+        if (!explicit_serial) {
+            const auto offset = tokens_[receive_brace].begin - (first_byte + node.begin);
+            lowered.insert(offset, "serial ");
+        }
+        chare.receives.push_back({receive_name, receive_signature, receive - 1});
+        return lowered;
     }
 
     std::size_t parse_entry(std::size_t begin, std::size_t end, Chare& chare) {
@@ -649,96 +781,8 @@ private:
             }
             if (!analyzed.has_sdag || name == chare.name || !attributes.empty())
                 fail(first_sdag, "SDAG requires an unannotated void entry method");
-
-            // Every node is a half-open range in the original method body.
-            // Only top-level ordinary statements, explicit serial blocks, and
-            // direct when receives are lowered in Phase 5.2.
-            std::string ci_body = "{\n";
-            for (std::size_t n = 0; n < analyzed.statements.size();) {
-                const auto& node = analyzed.statements[n];
-                if (node.kind == detail::SdagKind::Ordinary) {
-                    // Local variables declared before a suspension cannot
-                    // safely be captured by an implicit SDAG serial block.
-                    // Recognize common built-in declarations conservatively;
-                    // richer declarations need later C++-aware analysis.
-                    const bool followed_by_wait = std::any_of(
-                        analyzed.statements.begin() + static_cast<std::ptrdiff_t>(n + 1),
-                        analyzed.statements.end(), [](const detail::SdagNode& statement) {
-                            return statement.kind == detail::SdagKind::When;
-                        });
-                    if (followed_by_wait) {
-                        auto token = body + 1;
-                        while (token < body_end &&
-                               tokens_[token].begin < first_byte + node.begin)
-                            ++token;
-                        const auto first = token_text(token);
-                        if (first == "int" || first == "float" || first == "double" ||
-                            first == "bool" || first == "char" || first == "auto" ||
-                            first == "const" || first == "unsigned" ||
-                            first == "signed" || first == "short" || first == "long")
-                            fail(token, "local declaration before an SDAG wait requires a chare field");
-                    }
-                    auto last = n;
-                    while (last + 1 < analyzed.statements.size() &&
-                           analyzed.statements[last + 1].kind == detail::SdagKind::Ordinary)
-                        ++last;
-                    ci_body += "serial {\n";
-                    ci_body += std::string(text.substr(node.begin,
-                        analyzed.statements[last].end - node.begin));
-                    ci_body += "\n}\n";
-                    n = last + 1;
-                    continue;
-                }
-                if (node.kind == detail::SdagKind::Serial) {
-                    ci_body += std::string(text.substr(node.begin, node.end - node.begin));
-                    ci_body += "\n";
-                    ++n;
-                    continue;
-                }
-                if (node.kind != detail::SdagKind::When)
-                    throw Diagnostic("Phase 5.2 does not support nested or conditional SDAG statements",
-                                     first_byte + node.begin);
-
-                // Find the receive's tokens using source offsets; do not
-                // reconstruct parameters or ordinary serial C++ syntax.
-                auto receive = body + 1;
-                while (receive < body_end && tokens_[receive].begin < first_byte + node.begin)
-                    ++receive;
-                if (!is(receive, "when"))
-                    fail(receive, "expected a direct SDAG when statement");
-                ++receive;
-                if (receive >= body_end || tokens_[receive].kind != Kind::Identifier)
-                    fail(receive, "expected SDAG receive entry name");
-                const auto receive_name = token_text(receive++);
-                if (!is(receive, "("))
-                    fail(receive, "Phase 5.2 does not support reference-matched when");
-                const auto receive_close = matching(receive, "(", ")", body_end);
-                if (is(receive_close + 1, ","))
-                    fail(receive_close + 1, "Phase 5.2 does not support multiple receives");
-                const auto receive_signature = "void " + receive_name + std::string(
-                    source_.substr(tokens_[receive].begin,
-                                   tokens_[receive_close].end - tokens_[receive].begin));
-                const auto serial_or_brace = receive_close + 1;
-                const bool explicit_serial = is(serial_or_brace, "serial");
-                const auto receive_brace = explicit_serial ? serial_or_brace + 1 : serial_or_brace;
-                if (!is(receive_brace, "{"))
-                    fail(receive_brace, "expected when receive body");
-                const auto receive_end = matching(receive_brace, "{", "}", body_end);
-                for (auto i = receive_brace + 1; i < receive_end; ++i) {
-                    if (is(i, "when") || is(i, "overlap") || is(i, "forall") ||
-                        (is(i, "case") && is(i + 1, "{")))
-                        fail(i, "nested SDAG awaits are deferred");
-                }
-                std::string lowered(text.substr(node.begin, node.end - node.begin));
-                if (!explicit_serial) {
-                    const auto offset = tokens_[receive_brace].begin - (first_byte + node.begin);
-                    lowered.insert(offset, "serial ");
-                }
-                ci_body += lowered + "\n";
-                chare.receives.push_back({receive_name, receive_signature, receive - 1});
-                ++n;
-            }
-            ci_body += "}";
+            const auto ci_body = std::string("{\n") +
+                lower_sdag_nodes(text, first_byte, analyzed.statements, chare) + "\n}";
             chare.sdag_entries.push_back(signature + " " + ci_body);
             chare.has_sdag = true;
             edits_.push_back({tokens_[begin].begin, tokens_[body_end].end, ""});
