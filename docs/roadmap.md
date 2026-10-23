@@ -23,7 +23,7 @@ unsupported entry attributes, return types, and remaining declaration features.
 | 4.3 | Complete | Implement entry `T data[n]` marshalling syntax: preserve bounds in `.ci`, lower C++ signatures to `T* data`, validate named/literal bounds and remote copying; port Jacobi2D |
 | 5.0 | Complete | Recognize SDAG bodies and build source-ranged structural nodes; no SDAG emission |
 | 5.1 | Complete (single-when slice) | Single `when`, receive entry registration, SDAG C++ glue, and runtime comparison |
-| 5.2 | In progress | Implicit `serial` segmentation and statement-boundary preservation |
+| 5.2 | Complete (sequential subset) | Implicit `serial` segmentation and statement-boundary preservation |
 | 5.3 | Planned | SDAG `if`, `for`, reference-matched `when` and asynchronous behavior tests |
 | 5.4 | Planned | Port Prefix Sum, verify every expected prefix with varying PEs and message arrival orders |
 | 5.5 | Planned | Extend to `overlap`, `case`, `while`, `forall`, and lifetime diagnostics |
@@ -116,8 +116,8 @@ Charm++ fixture and compile and execute through the pinned Charm++ CI toolchain.
   bodies, are supported. Receive metadata remains in generated `.ci` and their
   method implementations are supplied by Charmxi.
 - Nested SDAG control constructs (`if`, `for`, `overlap`, `case`, `forall`,
-  `while`) remain unsupported. Variable declarations whose lifetime crosses
-  an asynchronous boundary remain outside the supported subset; values that
-  must persist across waits should be chare fields for now.
+  `while`) remain unsupported. Common built-in local declarations before a subsequent wait are
+  rejected conservatively; general cross-suspension C++ lifetime analysis is
+  deferred. Values that must persist across waits should be chare fields.
 - Compare with a handwritten Charm++ fixture that contains serial work before,
   between and after two waits, for both queued and post-wait arrivals.
