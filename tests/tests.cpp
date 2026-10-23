@@ -215,6 +215,49 @@ entry:
             "reductiontarget cannot");
 }
 
+
+void entry_constructor_initializers() {
+    const auto generated = charmsharp::translate(R"SRC(struct Base {
+    explicit Base(int x) : value(x) {}
+    int value;
+};
+chare Worker : public Base {
+    int count;
+    int values[2];
+entry:
+    Worker(int n) : Base(n), count{n + 1}, values{1, 2} {
+        count += values[0];
+    }
+    void ping() {}
+};)SRC", "Ctor");
+    contains(generated.interface_source, "entry Worker(int n);");
+    contains(generated.interface_source, "entry void ping();");
+    contains(generated.cpp_source,
+             "Worker(int n) : Base(n), count{n + 1}, values{1, 2} {");
+    ++checks;
+    if (generated.interface_source.find("count{") != std::string::npos)
+        throw std::runtime_error("constructor initializer leaked into .ci");
+
+    const auto nested = charmsharp::translate(R"SRC(mainchare Main {
+    int value;
+entry:
+    Main(CkArgMsg* m) : value((1 + (2 * 3))) { delete m; CkExit(); }
+};)SRC", "Nested");
+    contains(nested.interface_source, "entry Main(CkArgMsg* m);");
+    contains(nested.cpp_source, "value((1 + (2 * 3)))");
+
+    rejects("chare A { entry: void f() : x(1) {}; };",
+            "initializer lists are only valid for entry constructors");
+    rejects("chare A { entry: A() : x; };",
+            "expected '(' or '{'");
+    rejects("chare A { entry: A() : x(1); };",
+            "expected constructor body");
+    rejects("chare A { entry: A() : x(1), {}; };",
+            "expected initializer member");
+    rejects("chare A { entry: A() : x(1), y(2); };",
+            "expected constructor body");
+}
+
 void fixed_size_messages() {
     const auto output = charmsharp::translate(R"SRC(message Payload {
 public:
@@ -431,6 +474,7 @@ int main() {
     groups_and_arrays();
     attributed_entries();
     reduction_target_entries();
+    entry_constructor_initializers();
     fixed_size_messages();
     readonly_globals();
     ordinary_inheritance();

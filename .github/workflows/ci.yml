@@ -92,3 +92,8 @@ jobs:
         run: |
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
           make charm-benchmark-reduction
+
+      - name: Compile and run entry constructor initializer fixture
+        run: |
+          export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
+          make charm-ctor-initializers

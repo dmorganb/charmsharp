@@ -481,8 +481,38 @@ private:
         for (std::size_t i = open + 1; i < close; ++i) {
             if (is(i, "=")) fail(i, "default entry arguments are deferred in phase 1");
         }
-        if (!is(close + 1, ";") && !is(close + 1, "{"))
-            fail(close, "entry qualifiers, trailing return types and initializer lists are deferred");
+        // Entry constructor initializer lists belong only in the C++ definition,
+        // not in the .ci signature. Validate the structural shape while leaving
+        // every source byte (including comments/spacing) untouched.
+        auto body = close + 1;
+        if (is(body, ":")) {
+            if (name != chare.name)
+                fail(body, "initializer lists are only valid for entry constructors");
+            ++body;
+            while (true) {
+                // The member/base designator is intentionally restricted to a
+                // simple or qualified identifier; full C++ parsing is deferred.
+                if (body >= end || tokens_[body].kind != Kind::Identifier)
+                    fail(body, "expected initializer member or base name");
+                ++body;
+                while (is(body, ":") && is(body + 1, ":")) {
+                    body += 2;
+                    if (body >= end || tokens_[body].kind != Kind::Identifier)
+                        fail(body, "expected qualified initializer name");
+                    ++body;
+                }
+                if (!is(body, "(") && !is(body, "{"))
+                    fail(body, "expected '(' or '{' after initializer name");
+                const bool paren = is(body, "(");
+                body = matching(body, paren ? "(" : "{", paren ? ")" : "}", end) + 1;
+                if (!is(body, ",")) break;
+                ++body;
+            }
+            if (!is(body, "{"))
+                fail(body, "expected constructor body after initializer list");
+        }
+        if (!is(body, ";") && !is(body, "{"))
+            fail(body, "entry qualifiers, trailing return types and initializer lists are deferred");
 
         std::string signature;
         for (const auto& attribute : attributes) signature += "[" + attribute + "] ";
@@ -492,9 +522,9 @@ private:
             fail(begin, "duplicate entry method signature");
         chare.entries.emplace_back(signature);
 
-        if (is(close + 1, ";")) return close + 2;
-        const auto body_end = matching(close + 1, "{", "}", end);
-        for (std::size_t i = close + 2; i < body_end; ++i) {
+        if (is(body, ";")) return body + 1;
+        const auto body_end = matching(body, "{", "}", end);
+        for (std::size_t i = body + 1; i < body_end; ++i) {
             if (is(i, "when") || is(i, "overlap") || is(i, "forall") ||
                 (is(i, "case") && is(i + 1, "{"))) {
                 fail(i, "SDAG syntax is deferred; phase 1 accepts ordinary C++ bodies only");
