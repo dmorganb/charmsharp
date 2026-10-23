@@ -88,7 +88,7 @@ private:
             auto child = statement(cursor);
             return {SdagKind::When, tokens_[start].begin, child.end, {std::move(child)}};
         }
-        if (at(cursor, "overlap") || (at(cursor, "case") && at(cursor + 1, "{")) {
+        if (at(cursor, "overlap") || (at(cursor, "case") && at(cursor + 1, "{"))) {
             const auto kind = at(cursor, "overlap") ? SdagKind::Overlap : SdagKind::Case;
             const auto start = cursor++;
             auto child = block(cursor);
