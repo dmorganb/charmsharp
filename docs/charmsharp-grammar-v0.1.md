@@ -42,6 +42,9 @@ access-label           = "private", ":" | "protected", ":"
                        | "public", ":" | "entry", ":" ;
 cpp-member             = CPP_DECL ;
 entry-method           = { entry-attribute }, CPP_METHOD_DECL_OR_DEF ;
+(* Within an entry method parameter list, recognize a marshalled
+   array declarator in addition to ordinary C++ parameters. *)
+marshalled-array-param = CPP_TYPE, IDENT, "[", CPP_ARRAY_BOUND, "]" ;
 entry-attribute        = "[[", "charm", "::", IDENT,
                          { ",", CPP_ATTRIBUTE_ARGUMENT }, "]]" ;
 
@@ -81,14 +84,15 @@ sdag-forall            = "forall", "[", IDENT, "]", "(",
 
 1. **Entry section.** `entry:` is only valid in a parallel type, and remains in effect until the next access label. It implies ordinary C++ `public:` and remote entry registration for eligible functions. Fields, type aliases, and nested types are rejected in that section in v0.1. A function body is optional: declarations may be defined out of line in ordinary C++.
 2. **Parallel types.** Each parallel type lowers to an ordinary C++ class with the appropriate generated `CBase_Name` base relationship, and a matching `.ci` declaration. User-provided inheritance follows the classification and lowering rules in Section 3.1; never silently discard bases. Array dimensionality is an index-shape declaration, not an instance size.
-3. **Entry attributes.** `[[charm::threaded]]`, `[[charm::sync]]`, and other supported attributes lower to Charm++ `.ci` entry attributes. Attribute spelling, argument forms, and applicable combinations must follow the target Charm++ version. An attribute never invents new runtime behavior. No `entry [threaded]:` section syntax is included in v0.1.
-4. **Message and readonly declarations.** They lower to the corresponding Charm++ interface metadata and normal C++ definitions. `readonly` has Charm++ initialization semantics, not ordinary C++ `const` or `constexpr` semantics. Advanced variable-size message layouts are deferred.
-5. **Implicit receive declarations.** A `when` references one or more entry points. If an equivalent explicit declaration is absent, Charm# generates the corresponding `.ci` entry declaration. An explicit declaration is permitted and validated for signature compatibility; a separate C++ implementation for a `when`-managed entry point is rejected. A receive signature is **not** an ordinary function definition.
-6. **SDAG detection.** A method body containing a structurally recognized `when`, `overlap`, `case`, or `forall` is treated as SDAG-aware. Ordinary C++ methods remain ordinary C++ methods. A robust implementation must reject ambiguous/mixed constructs rather than guess.
-7. **Implicit `serial`.** Each maximal eligible contiguous run of ordinary C++ statements inside an SDAG-aware method becomes one `serial { ... }` block in generated `.ci`. A run must not cross an SDAG control-flow construct. C++ text inside these runs is preserved. The grammar above is an *abstract* source grammar: correctly identifying the maximal runs in all C++ control-flow configurations requires a stated recognition subset and tests.
-8. **Variable lifetime.** Variables whose values must live across a `when` suspension must already be members of the chare (or otherwise persistent values supported by Charm++). Charm# v0.1 does not lift C++ locals into coroutine frames or implicitly promote them into class fields.
-9. **Matching.** `when receive[ref](...)` keeps Charm++'s existing reference-number semantics. No implicit correlation to the sender of a preceding proxy invocation. `overlap`, `case`, loops, and nested waits preserve SDAG semantics, including message buffering and matching rules.
-10. **Pass-through.** A project may still contain existing `.ci` files. Their contents are not reinterpreted by Charm#; generated modules must avoid collisions with those existing declarations.
+3. **Marshalled array parameters.** Within an `entry:` method, `T data[n]` declares a parameter-marshalled array of `n` elements, matching Charm++ `.ci` syntax. The bound is *serialization metadata*, not a C++ array parameter type or a new Charm# attribute. The recognizer must identify these declarators inside `CPP_METHOD_DECL_OR_DEF` parameter lists and distinguish them from arbitrary C++ pointer parameters. `CPP_ARRAY_BOUND` is an opaque source expression accepted only when valid as a Charmxi array bound for the targeted version; an integer literal or a named scalar entry parameter is the initial supported subset. Emit `T data[n]` in `.ci`; rewrite the C++ method signature to `T* data` (or an equivalent pointer declarator), preserving the method body and all other parameters. Do this consistently for inline definitions, declarations, and matching out-of-line definitions where applicable. An unannotated `T* data` has **no inferred length**: it must not silently be treated as a marshalled array, and its legality as an entry parameter remains subject to Charm++ validation. No `[[charm::length(...)]]` attribute is introduced in v0.1. Charm++ copies the specified number of elements for remote parameter marshalling; the callee receives runtime-owned storage, not the caller's pointer. Keep the initial implementation scoped to simple element types and pointer forms validated against the pinned toolchain; reject unsupported bounds or complex declarators with diagnostics.
+4. **Entry attributes.** `[[charm::threaded]]`, `[[charm::sync]]`, and other supported attributes lower to Charm++ `.ci` entry attributes. Attribute spelling, argument forms, and applicable combinations must follow the target Charm++ version. An attribute never invents new runtime behavior. No `entry [threaded]:` section syntax is included in v0.1.
+5. **Message and readonly declarations.** They lower to the corresponding Charm++ interface metadata and normal C++ definitions. `readonly` has Charm++ initialization semantics, not ordinary C++ `const` or `constexpr` semantics. Advanced variable-size message layouts are deferred.
+6. **Implicit receive declarations.** A `when` references one or more entry points. If an equivalent explicit declaration is absent, Charm# generates the corresponding `.ci` entry declaration. An explicit declaration is permitted and validated for signature compatibility; a separate C++ implementation for a `when`-managed entry point is rejected. A receive signature is **not** an ordinary function definition.
+7. **SDAG detection.** A method body containing a structurally recognized `when`, `overlap`, `case`, or `forall` is treated as SDAG-aware. Ordinary C++ methods remain ordinary C++ methods. A robust implementation must reject ambiguous/mixed constructs rather than guess.
+8. **Implicit `serial`.** Each maximal eligible contiguous run of ordinary C++ statements inside an SDAG-aware method becomes one `serial { ... }` block in generated `.ci`. A run must not cross an SDAG control-flow construct. C++ text inside these runs is preserved. The grammar above is an *abstract* source grammar: correctly identifying the maximal runs in all C++ control-flow configurations requires a stated recognition subset and tests.
+9. **Variable lifetime.** Variables whose values must live across a `when` suspension must already be members of the chare (or otherwise persistent values supported by Charm++). Charm# v0.1 does not lift C++ locals into coroutine frames or implicitly promote them into class fields.
+10. **Matching.** `when receive[ref](...)` keeps Charm++'s existing reference-number semantics. No implicit correlation to the sender of a preceding proxy invocation. `overlap`, `case`, loops, and nested waits preserve SDAG semantics, including message buffering and matching rules.
+11. **Pass-through.** A project may still contain existing `.ci` files. Their contents are not reinterpreted by Charm#; generated modules must avoid collisions with those existing declarations.
 
 ### 3.1 Inheritance semantics (proposed v0.1 rules)
 
@@ -188,7 +192,36 @@ entry:
 
 Lowers to `.ci` `array [1D] Particle { entry Particle(); entry void update(double dt); };` and an ordinary `class Particle : public CBase_Particle` declaration.
 
-### 4.3 Implicit SDAG `serial` and explicit `when` / `overlap`
+### 4.3 Marshalled entry arrays
+
+Charm# input:
+
+```cpp
+chare Worker {
+entry:
+    void process(int n, float data[n]) {
+        for (int i = 0; i < n; ++i) consume(data[i]);
+    }
+};
+```
+
+Generated `.ci` entry declaration:
+
+```cpp
+entry void process(int n, float data[n]);
+```
+
+Generated C++ method (schematic):
+
+```cpp
+void process(int n, float* data) {
+    for (int i = 0; i < n; ++i) consume(data[i]);
+}
+```
+
+The C++ pointer signature alone cannot tell Charm++ how many floats to marshal. The length expression belongs in the generated `.ci`, while the receiving implementation uses a pointer. The transpiler must remove the bound before C++ compilation rather than rely on variable-length array support, which is not standard C++. `data[n]` is not an ownership, lifetime-extension, or zero-copy guarantee. The runtime retains control of marshalled input storage; treat it as read-only unless the selected Charm++ API explicitly permits otherwise.
+
+### 4.4 Implicit SDAG `serial` and explicit `when` / `overlap`
 
 Charm# input:
 
@@ -229,7 +262,7 @@ entry void receiveB(int b);
 
 The generated C++ class contains appropriate SDAG code hooks, not another user-written `start()` implementation. The existing Charm++ translator generates its state machine. In this example, `continueWork()` occurs after both branches complete; `processA` and `processB` may be triggered in either order.
 
-### 4.4 Reference-matched iterations
+### 4.5 Reference-matched iterations
 
 ```cpp
 array [1D] chare Worker {
@@ -268,6 +301,7 @@ These issues should be resolved before claiming a complete normative grammar or 
 
 - Translate a basic chare and an array chare; compare generated `.ci` signatures and compile/run against a pinned Charm++ version.
 - Verify `entry:` implies public C++ access and produces proxy entry methods; ordinary `public:` does not.
+- Verify entry `float data[n]` generates the matching `.ci` bound and a C++ `float* data` signature, with a working remote send of exactly `n` elements; test literal bounds, named bounds, zero/invalid lengths, declarations versus definitions, and unsupported expressions or parameter declarators.
 - Verify an explicit declaration corresponding to an implicit `when` declaration is accepted exactly once; incompatible signatures and duplicate implementations are rejected.
 - Verify implicit `serial` segmentation for sends before a `when`, bodies of `when`, `overlap` branches, and code after synchronization.
 - Verify `case`, nested `if`/loops, early message arrival, out-of-order delivery, and reference-number matching behave like equivalent handwritten SDAG.
