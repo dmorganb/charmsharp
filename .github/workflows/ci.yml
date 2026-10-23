@@ -82,3 +82,8 @@ jobs:
         run: |
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
           make charm-parallel-inheritance
+
+      - name: Compare Primes Charm# port against original Charm++
+        run: |
+          export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
+          make charm-benchmark-primes

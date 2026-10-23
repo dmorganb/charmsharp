@@ -60,7 +60,7 @@ Each benchmark will eventually have:
 - `charmsharp/`: a semantically equivalent Charm# implementation, once the compiler supports the necessary features.
 - `tests/`: shared input fixtures and automated validation for equivalent observable behavior.
 
-The two latter directories are not created yet. Until they exist, these programs are **reference inputs**, not a complete dual-language benchmark or a validated performance comparison.
+Phase 4.0 adds the [Primes Charm# port](primes/charmsharp/primes.csh) and a runtime comparison test. The other three benchmarks remain unported reference inputs.
 
 ## Measurement notes
 
@@ -72,4 +72,4 @@ The two latter directories are not created yet. Until they exist, these programs
 
 ## Current status
 
-Sources collected and pinned. Compilation and runtime validation in the Charm# CI toolchain are pending.
+**Phase 4.0:** Primes is ported to Charm#; GitHub Actions builds the unchanged Charm++ reference and generated Charm# version against the same cached Charm++ v8.0.0 toolchain, runs both with 2 PEs and K=5, and compares all five ordered results. Run locally with `make charm-benchmark-primes` when `charmc` is on PATH. Runtime equivalence for the other three benchmarks remains pending.
