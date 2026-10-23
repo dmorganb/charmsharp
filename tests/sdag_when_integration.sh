@@ -19,15 +19,15 @@ cp tests/fixtures/sdag_when/when.ci tests/fixtures/sdag_when/when.C "$tmp/refere
     charmc when.ci
     charmc when.C -o when
 )
-"$repo/$tool" --module when --out-dir "$tmp/generated" examples/SdagWhen.csh
+"$repo/$tool" --module sdagwait --out-dir "$tmp/generated" examples/SdagWhen.csh
 
-grep -Fq 'entry void deliver(int value);' "$tmp/generated/when.ci"
-grep -Fq 'when deliver(int value) serial {' "$tmp/generated/when.ci"
-grep -Fq 'Worker_SDAG_CODE' "$tmp/generated/when.cpp"
+grep -Fq 'entry void deliver(int value);' "$tmp/generated/sdagwait.ci"
+grep -Fq 'when deliver(int value) serial {' "$tmp/generated/sdagwait.ci"
+grep -Fq 'Worker_SDAG_CODE' "$tmp/generated/sdagwait.cpp"
 (
     cd "$tmp/generated"
-    charmc when.ci
-    charmc when.cpp -o when
+    charmc sdagwait.ci
+    charmc sdagwait.cpp -o when
 )
 for arrival in early late; do
     (
