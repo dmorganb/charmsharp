@@ -60,7 +60,7 @@ Each benchmark will eventually have:
 - `charmsharp/`: a semantically equivalent Charm# implementation, once the compiler supports the necessary features.
 - `tests/`: shared input fixtures and automated validation for equivalent observable behavior.
 
-Phase 4.0 adds the [Primes Charm# port](primes/charmsharp/primes.csh) and a runtime comparison test. Phase 4.1 adds the [Reduction Charm# port](reduction/charmsharp/reduction.csh) and a runtime comparison test. Prefix Sum and Jacobi2D remain unported reference inputs.
+Phase 4.0 adds the [Primes Charm# port](primes/charmsharp/primes.csh) and a runtime comparison test. Phase 4.1 adds the [Reduction Charm# port](reduction/charmsharp/reduction.csh) and a runtime comparison test. Prefix Sum remains an unported reference input; Jacobi2D is now ported and validated.
 
 ## Measurement notes
 
@@ -72,4 +72,4 @@ Phase 4.0 adds the [Primes Charm# port](primes/charmsharp/primes.csh) and a runt
 
 ## Current status
 
-**Phase 4.0:** Primes is ported to Charm#; GitHub Actions builds the unchanged Charm++ reference and generated Charm# version against the same cached Charm++ v8.0.0 toolchain, runs both with 2 PEs and K=5, and compares all five ordered results. Run locally with `make charm-benchmark-primes` when `charmc` is on PATH. **Phase 4.1:** Reduction is ported using `[[charm::reductiontarget]]`; CI compiles both implementations with the same toolchain, runs at +p2 with 5 and 10 array elements, checks their expected sums, and compares their reported outputs. Run locally with `make charm-benchmark-reduction`. Runtime equivalence for Prefix Sum and Jacobi2D remains pending.
+**Phase 4.0:** Primes is ported to Charm#; GitHub Actions builds the unchanged Charm++ reference and generated Charm# version against the same cached Charm++ v8.0.0 toolchain, runs both with 2 PEs and K=5, and compares all five ordered results. Run locally with `make charm-benchmark-primes` when `charmc` is on PATH. **Phase 4.1:** Reduction is ported using `[[charm::reductiontarget]]`; CI compiles both implementations with the same toolchain, runs at +p2 with 5 and 10 array elements, checks their expected sums, and compares their reported outputs. Run locally with `make charm-benchmark-reduction`. **Phase 4.3:** Jacobi2D (upstream executable `stencil2d`) is ported with entry-array marshalling `float data[n]` and a matching integration check using an 8x8 grid, 4x4 tiles and 0.5 convergence threshold at +p2. Run locally with `make charm-benchmark-jacobi2d`. Runtime equivalence for Prefix Sum remains pending.

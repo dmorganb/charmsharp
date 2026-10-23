@@ -258,6 +258,58 @@ entry:
             "expected constructor body");
 }
 
+
+void marshalled_entry_arrays() {
+    const auto output = charmsharp::translate(R"SRC(mainchare Main {
+entry:
+    Main(CkArgMsg* msg) { delete msg; }
+};
+chare Worker {
+entry:
+    void receive(int n, float data[n]) {
+        float value = data[0];
+        (void)value;
+    }
+    void fixed(double data[3]) { (void)data[0]; }
+    void pointer(int n, float* data) { (void)n; (void)data; }
+};)SRC", "Arrays");
+    contains(output.interface_source, "entry void receive(int n, float data[n]);");
+    contains(output.interface_source, "entry void fixed(double data[3]);");
+    contains(output.interface_source, "entry void pointer(int n, float* data);");
+    contains(output.cpp_source, "void receive(int n, float *data) {");
+    contains(output.cpp_source, "void fixed(double *data) {");
+    contains(output.cpp_source, "void pointer(int n, float* data) {");
+    contains(output.cpp_source, "float value = data[0];");
+
+    const auto declared = charmsharp::translate(R"SRC(chare Worker {
+entry:
+    void receive(int n, float data[n]);
+};
+void Worker::receive(int n, float data[n]) {
+    (void)data[0];
+})SRC", "OutOfLine");
+    contains(declared.interface_source, "entry void receive(int n, float data[n]);");
+    contains(declared.cpp_source, "void receive(int n, float *data);");
+    contains(declared.cpp_source, "void Worker::receive(int n, float *data) {");
+
+    rejects("chare A { entry: void send(int n, float data[]); };",
+            "unsupported marshalled array");
+    rejects("chare A { entry: void send(int n, float data[n + 1]); };",
+            "unsupported marshalled array");
+    rejects("chare A { entry: void send(float data[n], int n); };",
+            "earlier integer parameter");
+    rejects("chare A { entry: void send(float data[0]); };",
+            "literal bound must be positive");
+    rejects("chare A { entry: void send(float data[-1]); };",
+            "unsupported marshalled array");
+    rejects("chare A { entry: void send(int n, float data[n][2]); };",
+            "unsupported marshalled array");
+    rejects("chare A { entry: void send(int n, float* data[n]); };",
+            "unsupported marshalled array");
+    rejects("chare A { entry: void send(int n, Widget data[n]); };",
+            "unsupported marshalled array element type");
+}
+
 void fixed_size_messages() {
     const auto output = charmsharp::translate(R"SRC(message Payload {
 public:
@@ -475,6 +527,7 @@ int main() {
     attributed_entries();
     reduction_target_entries();
     entry_constructor_initializers();
+    marshalled_entry_arrays();
     fixed_size_messages();
     readonly_globals();
     ordinary_inheritance();

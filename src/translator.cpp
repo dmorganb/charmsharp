@@ -102,6 +102,19 @@ public:
                 i = parse_readonly(i) - 1;
             }
         }
+        // Out-of-line definitions of marshalled entries must use pointer
+        // signatures too; otherwise a runtime-sized array is not valid C++20.
+        for (std::size_t i = 0; i + 4 < tokens_.size(); ++i) {
+            if (!is(i + 1, ":") || !is(i + 2, ":") || !is(i + 4, "(")) continue;
+            const auto class_name = token_text(i);
+            const auto method_name = token_text(i + 3);
+            if (std::find(array_entry_methods_.begin(), array_entry_methods_.end(),
+                          std::make_pair(class_name, method_name)) == array_entry_methods_.end())
+                continue;
+            const auto close = matching(i + 4, "(", ")", tokens_.size());
+            rewrite_entry_arrays(i + 4, close);
+            i = close;
+        }
         if (chares_.empty() && messages_.empty() && readonly_.empty())
             throw Diagnostic("expected a top-level Charm# declaration", 0);
 
@@ -143,6 +156,7 @@ private:
     std::vector<Token> tokens_;
     std::vector<Edit> edits_;
     std::vector<Chare> chares_;
+    std::vector<std::pair<std::string, std::string>> array_entry_methods_;
     std::vector<std::string> messages_;
     std::vector<std::string> readonly_;
     std::vector<std::string> readonly_names_;
@@ -420,6 +434,51 @@ private:
         }
     }
 
+
+    bool rewrite_entry_arrays(std::size_t open, std::size_t close) {
+        bool found = false;
+        std::vector<std::string> scalar_lengths;
+        auto first = open + 1;
+        for (auto i = first; i <= close; ++i) {
+            // Only a simple comma-separated parameter list is interpreted for
+            // marshalled arrays; other C++ signatures remain untouched.
+            if (i != close && !is(i, ",")) continue;
+            if (i == first) { first = i + 1; continue; }
+            std::size_t bracket = first;
+            while (bracket < i && !is(bracket, "[")) ++bracket;
+            if (bracket != i) {
+                if (bracket != first + 2 || bracket + 3 != i ||
+                    tokens_[first].kind != Kind::Identifier ||
+                    tokens_[first + 1].kind != Kind::Identifier ||
+                    !is(bracket + 2, "]"))
+                    fail(first, "unsupported marshalled array parameter declarator");
+                const auto type = token_text(first);
+                if (type != "float" && type != "double" && type != "int")
+                    fail(first, "unsupported marshalled array element type");
+                const auto bound = token_text(bracket + 1);
+                const auto numeric = !bound.empty() &&
+                    std::all_of(bound.begin(), bound.end(),
+                                [](char c) { return c >= '0' && c <= '9'; });
+                if (numeric) {
+                    if (bound[0] == '0')
+                        fail(bracket + 1, "marshalled array literal bound must be positive");
+                } else if (std::find(scalar_lengths.begin(), scalar_lengths.end(), bound) ==
+                           scalar_lengths.end()) {
+                    fail(bracket + 1, "marshalled array bound must name an earlier integer parameter");
+                }
+                // In .ci keep T data[n]; C++ receives T *data.
+                edits_.push_back({tokens_[first + 1].begin, tokens_[first + 1].begin, "*"});
+                edits_.push_back({tokens_[bracket].begin, tokens_[bracket + 2].end, ""});
+                found = true;
+            } else if (i == first + 2 && is(first, "int") &&
+                       tokens_[first + 1].kind == Kind::Identifier) {
+                scalar_lengths.push_back(token_text(first + 1));
+            }
+            first = i + 1;
+        }
+        return found;
+    }
+
     std::size_t parse_entry(std::size_t begin, std::size_t end, Chare& chare) {
         if (tokens_[begin].kind == Kind::Directive)
             fail(begin, "preprocessor directives between entry methods are deferred");
@@ -478,6 +537,8 @@ private:
         }
 
         const auto close = matching(open, "(", ")", end);
+        if (rewrite_entry_arrays(open, close))
+            array_entry_methods_.emplace_back(chare.name, name);
         for (std::size_t i = open + 1; i < close; ++i) {
             if (is(i, "=")) fail(i, "default entry arguments are deferred in phase 1");
         }
