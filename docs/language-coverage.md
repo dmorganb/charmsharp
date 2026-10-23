@@ -43,7 +43,7 @@ This page summarizes current implementation and its boundaries.
 - **Source/build model:** One module per input, no dependency discovery,
   conditional parallel declarations rejected, and no generated `#line`
   mapping.
-- **SDAG:** `when`, implicit receive entries, `serial`, `overlap`,
+- **SDAG:** Phase 5.0 structurally recognizes SDAG bodies (with source ranges) but intentionally does not emit them. Lowering of `when`, implicit receive entries, `serial`, `overlap`,
   `case`, reference matching and SDAG loops are design proposals, not
   implemented.
 
