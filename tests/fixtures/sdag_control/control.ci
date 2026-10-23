@@ -10,10 +10,10 @@ mainmodule control {
             serial { total = 0; }
             for (step = 0; step < 2; ++step) {
                 when deliver[step](int tag, int value) serial {
-                    total += value;
+                    total = total * 10 + value;
                 }
             }
-            if (total == 42) {
+            if (total == 24) {
                 serial { parent.done(total); }
             } else {
                 serial { parent.done(-1); }
