@@ -5,7 +5,7 @@ CPPFLAGS += -Iinclude
 LIB_SOURCES = src/lexer.cpp src/translator.cpp
 HEADERS = src/lexer.hpp include/charmsharp/translator.hpp
 
-.PHONY: all test charm-check charm-run charm-objects charm-threaded charm-message charm-readonly charm-inheritance charm-message-inheritance charm-parallel-inheritance charm-benchmark-primes charm-benchmark-reduction clean
+.PHONY: all test charm-check charm-run charm-objects charm-threaded charm-message charm-readonly charm-inheritance charm-message-inheritance charm-parallel-inheritance charm-benchmark-primes charm-benchmark-reduction charm-ctor-initializers clean
 all: build/charmsharp
 
 build/charmsharp: src/main.cpp $(LIB_SOURCES) $(HEADERS)
@@ -52,6 +52,9 @@ charm-benchmark-primes: build/charmsharp
 
 charm-benchmark-reduction: build/charmsharp
 	sh tests/benchmark_reduction.sh ./build/charmsharp
+
+charm-ctor-initializers: build/charmsharp
+	sh tests/charm_run.sh ./build/charmsharp examples/ConstructorInitializers.csh ConstructorInitializers 'Hello from constructor initializers: 43'
 
 clean:
 	rm -f build/charmsharp build/tests
