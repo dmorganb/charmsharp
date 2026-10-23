@@ -90,7 +90,7 @@ must not translate an unfamiliar annotation by silently dropping it.
 | --- | --- | --- |
 | `message` declarations | Included | Generate interface declaration, C++ `CMessage_...` base, and verify allocation/serialization semantics; variable-size messages need separate handling |
 | `readonly` declarations | Included | Generate `.ci` metadata and C++ storage while respecting Charm++ startup initialization |
-| User-provided inheritance | Included in syntax | Normalize `CBase_...` together with user bases without silently dropping either |
+| User-provided inheritance | Proposed in [grammar Section 3.1](charmsharp-grammar-v0.1.md) | Classify ordinary C++ vs. parallel bases, normalize `CBase_...`, diagnose unresolved external bases and preserve constructor forwarding |
 | Namespaces and nested declarations | Deferred decision | Define naming / generated proxy policy; currently rejected for parallel types |
 | Module declarations / imports | Partly design issue | `mainmodule` auto-selection and one module per source work; `extern module`, multiple files, imports, registration, and collisions need design |
 | Additional Charm++ interface directives | Not fully enumerated in v0.1 | Examples include initialization hooks and template/module-related constructs; require separate scoping |

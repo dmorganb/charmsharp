@@ -84,7 +84,7 @@ and the two generated include lines).
 
 ## Language coverage
 
-For an exact inventory of supported declarations, remaining Charm++ entry
+The [Charm# grammar and translation specification](docs/charmsharp-grammar-v0.1.md)\nnow includes proposed inheritance classification and lowering rules.\n\nFor an exact inventory of supported declarations, remaining Charm++ entry
 attributes, return-type restrictions, messages/readonly declarations, and the
 SDAG backlog, see [language coverage](docs/language-coverage.md). For milestone
 sequencing see [the roadmap](docs/roadmap.md).
