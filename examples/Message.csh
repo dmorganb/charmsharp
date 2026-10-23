@@ -18,7 +18,7 @@ mainchare Main {
 entry:
     Main(CkArgMsg* args) {
         delete args;
-        auto worker = CProxy_Worker::ckNew();
+        CProxy_Worker worker = CProxy_Worker::ckNew();
         auto* msg = new Payload;
         msg->value = 42;
         worker.receive(msg);
