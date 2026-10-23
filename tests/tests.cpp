@@ -1,4 +1,5 @@
 #include "charmsharp/translator.hpp"
+#include "../src/sdag.hpp"
 
 #include <cstdlib>
 #include <functional>
@@ -438,6 +439,67 @@ chare Child : public App, public Parent { entry: Child() {} };
     contains(reversed.cpp_source, "class Child : public CBase_Child, public App {");
 }
 
+
+void sdag_structure() {
+    using charmsharp::detail::SdagKind;
+    constexpr std::string_view source = R"SRC({
+        for (dist = 1; dist < numElements; dist <<= 1) {
+            if (thisIndex + dist < numElements) serial {
+                prefixArray[thisIndex + dist].passValue(dist, value);
+            }
+            if (thisIndex >= dist)
+                when passValue[dist](int stepDist, int val) serial {
+                    value += val;
+                }
+        }
+        serial { contribute(0, NULL, CkReduction::nop, cb); }
+    })SRC";
+    const auto tree = charmsharp::detail::parse_sdag_body(source);
+    ++checks;
+    if (!tree.has_sdag || tree.statements.size() != 2 ||
+        tree.statements[0].kind != SdagKind::For ||
+        tree.statements[1].kind != SdagKind::Serial)
+        throw std::runtime_error("unexpected SDAG top-level structure");
+    const auto& loop_body = tree.statements[0].children.at(0);
+    ++checks;
+    if (loop_body.kind != SdagKind::Block || loop_body.children.size() != 2 ||
+        loop_body.children[0].kind != SdagKind::If ||
+        loop_body.children[1].kind != SdagKind::If)
+        throw std::runtime_error("unexpected SDAG nested control structure");
+    const auto& receive = loop_body.children[1].children.at(0);
+    ++checks;
+    if (receive.kind != SdagKind::When || receive.children.size() != 1 ||
+        receive.children[0].kind != SdagKind::Serial ||
+        source.substr(receive.begin, 4) != "when")
+        throw std::runtime_error("incorrect SDAG receive node or source range");
+
+    const auto plain = charmsharp::detail::parse_sdag_body(R"SRC({
+        const char* text = "when ghost() {}";
+        // overlap { }
+        doSomething();
+    })SRC");
+    ++checks;
+    if (plain.has_sdag || plain.statements.size() != 2)
+        throw std::runtime_error("ordinary C++ was misidentified as SDAG");
+
+    const auto multiple = charmsharp::detail::parse_sdag_body(
+        "{ when first(int x), second(int y) { use(x, y); } }");
+    ++checks;
+    if (!multiple.has_sdag || multiple.statements.size() != 1 ||
+        multiple.statements[0].kind != SdagKind::When)
+        throw std::runtime_error("multi-receive when not recognized");
+
+    ++checks;
+    try {
+        (void)charmsharp::detail::parse_sdag_body("{ when receive(int x) x++; }");
+        throw std::runtime_error("expected malformed when to be rejected");
+    } catch (const charmsharp::detail::SdagError& error) {
+        contains(error.what(), "expected SDAG receive body");
+    }
+    rejects("chare Worker { entry: void start() { when recv(int n) x++; } };",
+            "expected SDAG receive body");
+}
+
 void diagnostics() {
     rejects("chare A { entry: int x; };", "only simple method");
     rejects("chare A { entry: int value(); };", "must return void");
@@ -533,6 +595,7 @@ int main() {
     ordinary_inheritance();
     message_inheritance();
     parallel_inheritance();
+    sdag_structure();
     diagnostics();
     std::cout << "PASS " << checks << " checks\n";
 }
