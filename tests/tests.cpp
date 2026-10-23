@@ -189,6 +189,36 @@ entry:
         throw std::runtime_error("Charm# entry attributes leaked into C++ output");
 }
 
+void fixed_size_messages() {
+    const auto output = charmsharp::translate(R"SRC(message Payload {
+public:
+    int count = 0;
+    double weights[3]{};
+    int total() const { return count; }
+};
+mainchare Main {
+entry:
+    Main(CkArgMsg* args) { delete args; }
+    void accept(Payload* msg) { delete msg; }
+};
+)SRC", "Messages");
+    contains(output.interface_source, "mainmodule Messages {\n    message Payload;\n");
+    contains(output.interface_source, "entry void accept(Payload* msg);");
+    contains(output.cpp_source, "class Payload : public CMessage_Payload {");
+    contains(output.cpp_source, "double weights[3]{};");
+    contains(output.cpp_source, "int total() const { return count; }");
+
+    const auto message_only = charmsharp::translate("message M { int x; };", "Only");
+    contains(message_only.interface_source, "module Only {\n    message M;");
+    contains(message_only.cpp_source, "class M : public CMessage_M");
+
+    // Emission order must satisfy entry method references even if the source
+    // places the message declaration after its use.
+    const auto reordered = charmsharp::translate(
+        "chare A { entry: void receive(M* msg); }; message M { int x; };", "Order");
+    contains(reordered.interface_source, "module Order {\n    message M;\n    chare A");
+}
+
 void diagnostics() {
     rejects("chare A { entry: int x; };", "only simple method");
     rejects("chare A { entry: int value(); };", "must return void");
@@ -216,6 +246,16 @@ void diagnostics() {
     rejects("group A {}; nodegroup A {};", "duplicate chare name");
     rejects("chare A { entry: void f() { auto p = R\"(unterminated); } };",
             "unterminated raw string");
+    rejects("message { int value; };", "message type name");
+    rejects("message M;", "expected '{'");
+    rejects("message M { int value; }", "expected ';'");
+    rejects("message M : Base {};", "message inheritance");
+    rejects("message M { int values[]; };", "variable-size message arrays");
+    rejects("message M { entry: void foo(); };", "entry: is only valid");
+    rejects("message M {}; message M {};", "duplicate");
+    rejects("message M {}; chare M {};", "duplicate");
+    rejects("namespace N { message M {}; }", "namespace messages");
+    rejects("#ifdef X\nmessage M {};\n#endif", "preprocessor conditional");
 
     const std::string source = "\n\nchare A {\nentry:\n  int value;\n};";
     try {
@@ -235,6 +275,7 @@ int main() {
     multiple_chares_and_mainchare();
     groups_and_arrays();
     attributed_entries();
+    fixed_size_messages();
     diagnostics();
     std::cout << "PASS " << checks << " checks\n";
 }
