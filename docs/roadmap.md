@@ -1,7 +1,7 @@
 # Incremental implementation roadmap
 
 This roadmap tracks the implementation against `charmsharp-grammar-v0.1.md`.
-See [language coverage](language-coverage.md) for the detailed supported syntax,
+See [language coverage](language-coverage.md) and the [Phase 3.4 audit](declaration-coverage-audit.md) for supported syntax,
 unsupported entry attributes, return types, and remaining declaration features.
 
 | Milestone | Status | Scope / acceptance |
@@ -15,8 +15,9 @@ unsupported entry attributes, return types, and remaining declaration features.
 | 3.2 | Complete | `readonly` global declarations and initialization semantics |
 | 3.3.1 | Complete | Ordinary C++ inheritance with local base resolution, multiple bases, and Charm++ integration |
 | 3.3.2 | Complete | Message inheritance, separately validated against Charm++ |
-| 3.3.3 | In progress | Local public chare-to-chare inheritance and proxy entry forwarding; cross-file and other base forms deferred |
-| 4 | Planned | Single SDAG `when`; implicit receive entry declaration; first safe `serial` lowering |
+| 3.3.3 | Complete | Local public chare-to-chare inheritance and proxy entry forwarding; cross-file and other base forms deferred |
+| 3.4 | Complete (audit) | Version-pinned declaration coverage matrix, remaining constructs, and prioritized backlog; no new lowering |
+| 4 | Next | Single SDAG `when`; implicit receive entry declaration; first safe `serial` lowering |
 | 5 | Planned | SDAG references, `overlap`, `case`, loops, lifetime diagnostics, runtime equivalence tests |
 | Later | Planned | Variable-size messages, richer entries, multi-file/module integration, source mapping |
 
@@ -25,7 +26,7 @@ unsupported entry attributes, return types, and remaining declaration features.
 1. Lower top-level `message Name { ... };` to `message Name;` in `.ci` and
    `class Name : public CMessage_Name { ... };` in C++.
 2. Preserve fixed-size fields and ordinary member methods; reject unsized
-   arrays and inheritance until their semantics are implemented.
+   arrays. Ordinary message inheritance is now supported for local simple bases.
 3. Compile and execute a program transferring a custom message in CI.
 
 ## Readonly globals (phase 3.2)
