@@ -13,7 +13,7 @@ This page summarizes current implementation and its boundaries.
 | --- | --- | --- |
 | `chare`, `mainchare` | `chare`/`mainchare` in `.ci`; `CBase_` C++ classes | Executable mainchare/worker test; one mainchare per input. |
 | `group`, `nodegroup`, `array [ND] chare` | Parallel types in `.ci` | 1D/2D array and group/nodegroup executable tests; other positive dimension spellings parsed but untested. |
-| `entry:` | Public C++ method + `.ci entry` | Simple constructors, void methods, declarations/inline bodies; parameter text copied without marshalling proof. |
+| `entry:` | Public C++ method + `.ci entry` | Simple constructors, void methods, declarations/inline bodies, and initializer lists on entry constructor definitions; parameter text copied without marshalling proof. |
 | `[[charm::threaded]]`, `[[charm::sync]]`, `[[charm::reductiontarget]]` | `[threaded]`, `[sync]`, `[reductiontarget]` | Runtime threaded test, synchronous message-pointer interface, and reduction benchmark integration. |
 | `message Name { ... };` | `message Name;` plus `CMessage_Name` class | Fixed-size runtime send/receive; no general serialization proof. |
 | `readonly T x;`, `readonly T a[N];` | Readonly interface plus global C++ storage | Scalar runtime test; decimal array syntax checked. |
@@ -28,8 +28,8 @@ This page summarizes current implementation and its boundaries.
   `expedited` appears in current documentation but needs a pinned-version
   compatibility check.
 - **Entry methods:** Nontrivial return types, qualifiers, constructor
-  initializer lists, templates, default arguments and local entry semantics
-  are deferred. We do not perform full C++ type resolution or PUP validation.
+  templates, default arguments and local entry semantics
+  are deferred. Constructor initializer lists are supported for entry definitions with simple or qualified base/member designators and parenthesized or braced initializers. We do not perform full C++ type resolution or PUP validation.
 - **Messages/readonly:** Variable-size messages, readonly message pointers
   and complicated declarations need their own serialization/initialization
   tests. Fixed-size declarations with unsupported members may still fail in
