@@ -1,0 +1,35 @@
+mainmodule extended {
+    mainchare Main {
+        entry Main(CkArgMsg* msg);
+        entry void done(int value);
+    };
+    chare Worker {
+        entry Worker(CProxy_Main p);
+        entry void tick(int tag);
+        entry void left(int x);
+        entry void right(int y);
+        entry void first(int x);
+        entry void second(int y);
+        entry void indexed(int index);
+        entry void start() {
+            while (step < 2) {
+                when tick[step](int tag) serial {
+                    total += tag + 1;
+                    ++step;
+                }
+            }
+            overlap {
+                when left(int x) serial { total += x; }
+                when right(int y) serial { total += y; }
+            }
+            case {
+                when first(int x) serial { total += x; }
+                when second(int y) serial { total += y; }
+            }
+            forall [step] (0:1, 1) {
+                when indexed[step](int index) serial { total += index + 2; }
+            }
+            serial { parent.done(total); }
+        };
+    };
+};

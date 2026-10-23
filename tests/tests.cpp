@@ -580,8 +580,6 @@ entry:
             "local declaration before an SDAG wait");
     rejects("chare A { entry: void f() { when ping(int n), pong(int m) {} } };",
             "multiple receives");
-    rejects("chare A { entry: void f() { when ping() {} overlap {} } };",
-            "Phase 5.3 does not support");
 }
 
 void sdag_if_for_ref_matching() {
@@ -625,12 +623,46 @@ entry:
 
     rejects("chare A { entry: void start() { for (int step = 0; step < 2; ++step) { when deliver[step](int tag) {} } } };",
             "SDAG for index must be a persistent chare field");
-    rejects("chare A { entry: void start() { when deliver(int x) {} while (true) {} } };",
-            "Phase 5.3 does not support");
     rejects("chare A { entry: void start() { when deliver(int x), other(int y) {} } };",
             "multiple receives");
-    rejects("chare A { entry: void start() { when deliver(int x) {} for(;;) overlap {} } };",
-            "Phase 5.3 does not support");
+}
+
+void sdag_extended_controls() {
+    const auto generated = charmsharp::translate(R"SRC(chare Worker {
+    int iteration;
+entry:
+    void start() {
+        while (iteration < 2) {
+            when tick[iteration](int tag) {
+                ++iteration;
+            }
+        }
+        overlap {
+            when left(int x) { CkPrintf("L%d", x); }
+            when right(int y) { CkPrintf("R%d", y); }
+        }
+        case {
+            when first(int x) { CkPrintf("A%d", x); }
+            when second(int y) { CkPrintf("B%d", y); }
+        }
+        forall [iteration] (0:1, 1) {
+            when indexed[iteration](int index) { CkPrintf("%d", index); }
+        }
+    }
+};)SRC", "Extended");
+    contains(generated.interface_source, "while (iteration < 2)");
+    contains(generated.interface_source, "overlap {");
+    contains(generated.interface_source, "case {");
+    contains(generated.interface_source, "forall [iteration] (0:1, 1)");
+    contains(generated.interface_source, "when tick[iteration](int tag) serial {");
+    contains(generated.interface_source, "when left(int x) serial {");
+    contains(generated.interface_source, "when right(int y) serial {");
+    contains(generated.interface_source, "when first(int x) serial {");
+    contains(generated.interface_source, "when second(int y) serial {");
+    contains(generated.interface_source, "when indexed[iteration](int index) serial {");
+    contains(generated.cpp_source, "Worker_SDAG_CODE");
+    rejects("chare A { entry: void start() { forall [int i] (0:2, 1) { when value(int n) {} } } };",
+            "SDAG forall index must name a persistent chare field");
 }
 
 void diagnostics() {
@@ -732,6 +764,7 @@ int main() {
     basic_sdag_when_lowering();
     implicit_sdag_serial_runs();
     sdag_if_for_ref_matching();
+    sdag_extended_controls();
     diagnostics();
     std::cout << "PASS " << checks << " checks\n";
 }

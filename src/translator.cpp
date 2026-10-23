@@ -541,7 +541,11 @@ private:
                     nodes.end(), [](const detail::SdagNode& statement) {
                         return statement.kind == detail::SdagKind::When ||
                                statement.kind == detail::SdagKind::For ||
-                               statement.kind == detail::SdagKind::If;
+                               statement.kind == detail::SdagKind::If ||
+                               statement.kind == detail::SdagKind::While ||
+                               statement.kind == detail::SdagKind::Forall ||
+                               statement.kind == detail::SdagKind::Overlap ||
+                               statement.kind == detail::SdagKind::Case;
                     });
                 if (followed_by_wait) {
                     auto token = std::size_t{0};
@@ -581,7 +585,9 @@ private:
         if (node.kind == detail::SdagKind::Block) {
             return "{\n" + lower_sdag_nodes(text, first_byte, node.children, chare) + "\n}";
         }
-        if (node.kind == detail::SdagKind::If || node.kind == detail::SdagKind::For) {
+        if (node.kind == detail::SdagKind::If || node.kind == detail::SdagKind::For ||
+            node.kind == detail::SdagKind::While || node.kind == detail::SdagKind::Forall ||
+            node.kind == detail::SdagKind::Overlap || node.kind == detail::SdagKind::Case) {
             if (node.kind == detail::SdagKind::For) {
                 auto token = std::size_t{0};
                 while (token < tokens_.size() &&
@@ -594,6 +600,18 @@ private:
                         fail(token + 2, "SDAG for index must be a persistent chare field");
                 }
             }
+            if (node.kind == detail::SdagKind::Forall) {
+                // Charmxi expects an existing chare field, not a newly
+                // declared loop-local index inside the SDAG header.
+                auto token = std::size_t{0};
+                while (token < tokens_.size() &&
+                       tokens_[token].begin < first_byte + node.begin)
+                    ++token;
+                if (is(token, "forall") && is(token + 1, "[") &&
+                    (tokens_[token + 2].kind != Kind::Identifier ||
+                     !is(token + 3, "]")))
+                    fail(token + 2, "SDAG forall index must name a persistent chare field");
+            }
             std::string lowered;
             auto cursor = node.begin;
             for (const auto& child : node.children) {
@@ -605,7 +623,7 @@ private:
             return lowered;
         }
         if (node.kind != detail::SdagKind::When)
-            throw Diagnostic("Phase 5.3 does not support this SDAG control statement",
+            throw Diagnostic("unsupported SDAG control statement",
                              first_byte + node.begin);
 
         auto receive = std::size_t{0};
