@@ -20,9 +20,13 @@ unsupported entry attributes, return types, and remaining declaration features.
 | 4.0 | Complete | Port Primes to Charm# and compare compiled output against unmodified Charm++ reference in CI |
 | 4.1 | Complete | Support `[[charm::reductiontarget]]` and port Reduction; compare runtime results |
 | 4.2 | Complete | Structurally parse constructor initializer lists and retain them verbatim in C++ while emitting signature-only `.ci` entries; validate with Charm++ runtime |
-| 4.3 | In progress | Implement entry `T data[n]` marshalling syntax: preserve bounds in `.ci`, lower C++ signatures to `T* data`, validate named/literal bounds and remote copying; port Jacobi2D |
-| 4.4 | Planned | Implement benchmark-driven SDAG constructs; port Prefix Sum |
-| 5 | Planned | Extended SDAG references, `overlap`, `case`, lifetime diagnostics and expanded equivalence tests |
+| 4.3 | Complete | Implement entry `T data[n]` marshalling syntax: preserve bounds in `.ci`, lower C++ signatures to `T* data`, validate named/literal bounds and remote copying; port Jacobi2D |
+| 5.0 | In progress | Recognize SDAG bodies and build source-ranged structural nodes; no SDAG emission |
+| 5.1 | Planned | Single `when`, receive entry registration, SDAG C++ glue, and runtime comparison |
+| 5.2 | Planned | Implicit `serial` segmentation and statement-boundary preservation |
+| 5.3 | Planned | SDAG `if`, `for`, reference-matched `when` and asynchronous behavior tests |
+| 5.4 | Planned | Port Prefix Sum, verify every expected prefix with varying PEs and message arrival orders |
+| 5.5 | Planned | Extend to `overlap`, `case`, `while`, `forall`, and lifetime diagnostics |
 | Later | Planned | Variable-size messages, richer entries, multi-file/module integration, source mapping |
 
 ## Fixed-size message slice (phase 3.1)
@@ -58,16 +62,25 @@ unsupported entry attributes, return types, and remaining declaration features.
 3. Do not infer serialization lengths from bare pointers; reject unsupported or ambiguous array declarators rather than silently emitting incorrect marshalling.
 4. Validate named and literal array bounds, invoke the entry through a proxy, and compare transferred element values against a handwritten Charm++ fixture before porting Jacobi2D. Keep `std::span` and a dedicated length attribute outside v0.1.
 
-## Later SDAG slice
+## Phase 5: SDAG slices
 
-1. Pick one executable fixture with a mainchare and a chare using a single
-   `when` receive.
-2. Generate conventional SDAG in the `.ci` file, including a receive entry;
-   preserve the non-SDAG C++ parts and insert only the C++ glue required by
-   Charm++.
-3. Compare against an equivalent handwritten Charm++ SDAG example.
-4. Reject ambiguous C++ constructs and invalid cross-`when` local lifetimes
-   rather than guessing.
+1. **5.0:** Introduce a separate structural SDAG parser that distinguishes ordinary
+   C++ from SDAG-specific forms and retains byte ranges. It is deliberately
+   non-emitting: Charm# still rejects SDAG-containing entries until 5.1.
+2. **5.1:** Lower a single `when` into conventional Charm++ SDAG `.ci`, add
+   implicit or validated explicit receive entry declarations, and emit the
+   Charm++ `_SDAG_CODE` C++ glue. Test message arrival before/after a wait.
+3. **5.2:** Coalesce safe ordinary statement runs into `serial` blocks,
+   preserve original C++ source ranges, and reject unsafe scope crossings.
+4. **5.3:** Support SDAG `if` and `for` plus explicit reference matching.
+   Test buffered, out-of-order and repeated deliveries across loop iterations.
+5. **5.4:** Port the pinned Prefix Sum benchmark; validate all expected prefix
+   values rather than relying on asynchronous output line ordering.
+6. **5.5:** Expand syntax and diagnostics, particularly `overlap`, `case`,
+   `while`, `forall`, and cross-suspension variable lifetime.
+
+Every emitting slice must compare its `.ci` structure to a handwritten
+Charm++ fixture and compile and execute through the pinned Charm++ CI toolchain.
 
 ## Known parser boundaries
 
