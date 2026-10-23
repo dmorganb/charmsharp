@@ -288,6 +288,35 @@ mainchare Main { entry: Main(CkArgMsg* args) { delete args; } };
         throw std::runtime_error("ordinary message base leaked into .ci");
 }
 
+void parallel_inheritance() {
+    const auto output = charmsharp::translate(R"SRC(class Audit { public: int code() const { return 42; } };
+chare Base {
+entry:
+    Base() {}
+    void ping() {}
+};
+chare Derived : public Base, public Audit {
+entry:
+    Derived() {}
+    void pong() { (void)code(); }
+};
+)SRC", "InheritedProxy");
+    contains(output.interface_source, "chare Derived : Base {");
+    contains(output.interface_source, "entry void pong();");
+    contains(output.cpp_source,
+             "class Derived : public CBase_Derived, public Audit {");
+    ++checks;
+    if (output.cpp_source.find("CBase_Derived, public Base") != std::string::npos)
+        throw std::runtime_error("parallel base was duplicated in C++");
+
+    const auto reversed = charmsharp::translate(R"SRC(struct App {};
+chare Parent { entry: Parent() {} };
+chare Child : public App, public Parent { entry: Child() {} };
+)SRC", "Mixed");
+    contains(reversed.interface_source, "chare Child : Parent {");
+    contains(reversed.cpp_source, "class Child : public CBase_Child, public App {");
+}
+
 void diagnostics() {
     rejects("chare A { entry: int x; };", "only simple method");
     rejects("chare A { entry: int value(); };", "must return void");
@@ -300,8 +329,12 @@ void diagnostics() {
     rejects("chare A { entry: [[other::threaded]] void f(); };", "expected [[charm::");
     rejects("chare A { entry: void f() { when ping() { } } };", "SDAG");
     rejects("chare A : public Base { entry: void f(); };", "unresolved or later-defined");
-    rejects("chare Base {}; chare A : public Base {};", "parallel-base inheritance");
-    rejects("chare A : public Base {}; chare Base {};", "parallel-base inheritance");
+    rejects("chare A : public Base {}; chare Base {};", "defined before derived");
+    rejects("chare Base {}; chare A : Base {};", "explicit public");
+    rejects("chare Base {}; chare A : private Base {};", "explicit public");
+    rejects("chare Base {}; chare A : protected Base {};", "explicit public");
+    rejects("chare A {}; chare B {}; chare C : public A, public B {};", "multiple parallel");
+    rejects("group Base {}; chare A : public Base {};", "only chare-to-chare");
     rejects("struct Base {}; chare A : virtual Base {};", "virtual base");
     rejects("struct Base {}; chare A : public virtual Base {};", "virtual base");
     rejects("struct Base {}; chare A : public Base<int> {};", "complex base");
@@ -331,7 +364,7 @@ void diagnostics() {
     rejects("message M : Base {};", "unresolved or later-defined");
     rejects("message A {}; message B : public A {};", "message-to-message");
     rejects("message B : public A {}; message A {};", "message-to-message");
-    rejects("chare Worker {}; message M : Worker {};", "parallel-base");
+    rejects("chare Worker {}; message M : Worker {};", "message inheritance from parallel");
     rejects("struct Base {}; message M : virtual Base {};", "virtual base");
     rejects("struct Base {}; message M : Base, Base {};", "duplicate base");
     rejects("struct Base {}; message M : Base<int> {};", "complex base");
@@ -375,6 +408,7 @@ int main() {
     readonly_globals();
     ordinary_inheritance();
     message_inheritance();
+    parallel_inheritance();
     diagnostics();
     std::cout << "PASS " << checks << " checks\n";
 }

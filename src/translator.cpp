@@ -41,6 +41,7 @@ struct Edit {
 struct Chare {
     std::string kind;
     std::string name;
+    std::string parallel_base;
     std::vector<std::string> entries;
 };
 
@@ -125,7 +126,9 @@ public:
         for (const auto& declaration : readonly_)
             ci += "    readonly " + declaration + ";\n";
         for (const auto& chare : chares_) {
-            ci += "    " + chare.kind + " " + chare.name + " {\n";
+            ci += "    " + chare.kind + " " + chare.name;
+            if (!chare.parallel_base.empty()) ci += " : " + chare.parallel_base;
+            ci += " {\n";
             for (const auto& signature : chare.entries)
                 ci += "        entry " + signature + ";\n";
             ci += "    };\n";
@@ -211,17 +214,19 @@ private:
     struct Bases {
         std::size_t brace;
         std::string cpp;
+        std::string parallel;
     };
 
     Bases parse_ordinary_bases(std::size_t after_name, std::size_t declaration,
                                bool is_message) const {
-        Bases result{after_name, ""};
+        Bases result{after_name, "", ""};
         if (!is(after_name, ":")) return result;
         auto i = after_name + 1;
         std::vector<std::string> seen;
         while (i < tokens_.size() && !is(i, "{")) {
             const auto begin = i;
             if (is(i, "virtual")) fail(i, "virtual base inheritance is deferred");
+            const bool explicit_public = is(i, "public");
             if (is(i, "public") || is(i, "private") || is(i, "protected")) ++i;
             if (i >= tokens_.size() || tokens_[i].kind != Kind::Identifier)
                 fail(i, "expected a simple base class name");
@@ -234,8 +239,28 @@ private:
                                   message_type_names_.end())
                 fail(i, "message-to-message inheritance is deferred");
             if (std::find(parallel_type_names_.begin(), parallel_type_names_.end(), base) !=
-                parallel_type_names_.end())
-                fail(i, "parallel-base inheritance is deferred");
+                parallel_type_names_.end()) {
+                if (is_message) fail(i, "message inheritance from parallel types is not supported");
+                if (!explicit_public)
+                    fail(i, "parallel bases require explicit public inheritance");
+                if (!result.parallel.empty())
+                    fail(i, "multiple parallel bases are deferred");
+                const auto existing = std::find_if(chares_.begin(), chares_.end(),
+                                                   [&](const Chare& chare) { return chare.name == base; });
+                if (existing == chares_.end())
+                    fail(i, "parallel base must be defined before derived type");
+                if (existing->kind != "chare")
+                    fail(i, "only chare-to-chare inheritance is currently supported");
+                result.parallel = base;
+                ++i;
+                if (is(i, ",")) {
+                    ++i;
+                    if (is(i, "{")) fail(i, "expected a base class after ','");
+                    continue;
+                }
+                if (!is(i, "{")) fail(i, "complex base specifiers are deferred");
+                continue;
+            }
             if (std::none_of(ordinary_type_names_.begin(), ordinary_type_names_.end(),
                              [&](const auto& type) {
                                  return type.first == base && type.second < tokens_[declaration].begin;
@@ -253,7 +278,8 @@ private:
             if (!is(i, "{")) fail(i, "complex base specifiers are deferred");
         }
         result.brace = i;
-        if (result.cpp.empty()) fail(after_name, "expected a base class");
+        if (result.cpp.empty() && result.parallel.empty())
+            fail(after_name, "expected a base class");
         return result;
     }
 
@@ -364,7 +390,7 @@ private:
         edits_.push_back({tokens_[name].end, tokens_[brace].begin,
                           " : public CBase_" + chare_name +
                           (bases.cpp.empty() ? " " : ", " + bases.cpp + " ")});
-        chares_.push_back({kind, chare_name, {}});
+        chares_.push_back({kind, chare_name, bases.parallel, {}});
         parse_members(brace + 1, close, chares_.back());
         return close + 2;
     }

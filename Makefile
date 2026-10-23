@@ -5,7 +5,7 @@ CPPFLAGS += -Iinclude
 LIB_SOURCES = src/lexer.cpp src/translator.cpp
 HEADERS = src/lexer.hpp include/charmsharp/translator.hpp
 
-.PHONY: all test charm-check charm-run charm-objects charm-threaded charm-message charm-readonly charm-inheritance charm-message-inheritance clean
+.PHONY: all test charm-check charm-run charm-objects charm-threaded charm-message charm-readonly charm-inheritance charm-message-inheritance charm-parallel-inheritance clean
 all: build/charmsharp
 
 build/charmsharp: src/main.cpp $(LIB_SOURCES) $(HEADERS)
@@ -43,6 +43,9 @@ charm-inheritance: build/charmsharp
 
 charm-message-inheritance: build/charmsharp
 	sh tests/charm_run.sh ./build/charmsharp examples/MessageInheritance.csh MessageInheritance 'Hello from inherited message: 42'
+
+charm-parallel-inheritance: build/charmsharp
+	sh tests/charm_run.sh ./build/charmsharp examples/ParallelInheritance.csh ParallelInheritance 'Hello from inherited proxy: 42'
 
 clean:
 	rm -f build/charmsharp build/tests

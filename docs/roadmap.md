@@ -14,8 +14,8 @@ unsupported entry attributes, return types, and remaining declaration features.
 | 3.1 | Complete | Fixed-size `message` declarations and executable send/receive integration |
 | 3.2 | Complete | `readonly` global declarations and initialization semantics |
 | 3.3.1 | Complete | Ordinary C++ inheritance with local base resolution, multiple bases, and Charm++ integration |
-| 3.3.2 | In progress | Message inheritance, separately validated against Charm++ |
-| 3.3.3 | Planned | Parallel-base inheritance, cross-file resolution, and complex base specifiers |
+| 3.3.2 | Complete | Message inheritance, separately validated against Charm++ |
+| 3.3.3 | In progress | Local public chare-to-chare inheritance and proxy entry forwarding; cross-file and other base forms deferred |
 | 4 | Planned | Single SDAG `when`; implicit receive entry declaration; first safe `serial` lowering |
 | 5 | Planned | SDAG references, `overlap`, `case`, loops, lifetime diagnostics, runtime equivalence tests |
 | Later | Planned | Variable-size messages, richer entries, multi-file/module integration, source mapping |
@@ -35,6 +35,16 @@ unsupported entry attributes, return types, and remaining declaration features.
 2. Keep initialization explicit in the mainchare constructor: Charm++ broadcasts
    assigned values to processing elements during startup.
 3. Reject pointers, initializers and multi-token types until a later slice.
+
+## Parallel inheritance slice (phase 3.3.3)
+
+- Support one previously defined local `chare` base in `: public Base`, emit
+  `chare Derived : Base` in `.ci`, and omit the parallel base from generated C++
+  because it is already represented by `CBase_Derived`.
+- Allow mixed ordinary bases and validate inherited proxy method calls in CI.
+- Reject forward-defined parallel bases, more than one parallel base, other
+  parallel type kinds, and private/protected parallel inheritance until their
+  semantics and C++ ordering are addressed.
 
 ## Later SDAG slice
 
