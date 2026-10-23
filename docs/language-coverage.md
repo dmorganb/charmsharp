@@ -14,7 +14,7 @@ This page summarizes current implementation and its boundaries.
 | `chare`, `mainchare` | `chare`/`mainchare` in `.ci`; `CBase_` C++ classes | Executable mainchare/worker test; one mainchare per input. |
 | `group`, `nodegroup`, `array [ND] chare` | Parallel types in `.ci` | 1D/2D array and group/nodegroup executable tests; other positive dimension spellings parsed but untested. |
 | `entry:` | Public C++ method + `.ci entry` | Simple constructors, void methods, declarations/inline bodies; parameter text copied without marshalling proof. |
-| `[[charm::threaded]]`, `[[charm::sync]]` | `[threaded]`, `[sync]` | Runtime threaded test; simple synchronous message-pointer interface compiled. |
+| `[[charm::threaded]]`, `[[charm::sync]]`, `[[charm::reductiontarget]]` | `[threaded]`, `[sync]`, `[reductiontarget]` | Runtime threaded test, synchronous message-pointer interface, and reduction benchmark integration. |
 | `message Name { ... };` | `message Name;` plus `CMessage_Name` class | Fixed-size runtime send/receive; no general serialization proof. |
 | `readonly T x;`, `readonly T a[N];` | Readonly interface plus global C++ storage | Scalar runtime test; decimal array syntax checked. |
 | Ordinary C++ base classes on chares/messages | Added after `CBase_Name` / `CMessage_Name` | Multiple earlier-defined local simple bases, access specifiers, runtime integration. |
@@ -23,8 +23,8 @@ This page summarizes current implementation and its boundaries.
 
 ## Significant remaining boundaries
 
-- **Entry attributes:** v8.0.0 recognizes many more than our `threaded`
-  and `sync`; see the audit for the exact pinned attribute inventory.
+- **Entry attributes:** v8.0.0 recognizes many more than our `threaded`,
+  `sync`, and `reductiontarget`; see the audit for the exact pinned attribute inventory.
   `expedited` appears in current documentation but needs a pinned-version
   compatibility check.
 - **Entry methods:** Nontrivial return types, qualifiers, constructor
