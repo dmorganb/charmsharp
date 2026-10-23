@@ -72,3 +72,8 @@ jobs:
         run: |
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
           make charm-inheritance
+
+      - name: Build and run inherited message example
+        run: |
+          export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
+          make charm-message-inheritance
