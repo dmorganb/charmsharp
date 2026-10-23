@@ -25,8 +25,8 @@ unsupported entry attributes, return types, and remaining declaration features.
 | 5.1 | Complete (single-when slice) | Single `when`, receive entry registration, SDAG C++ glue, and runtime comparison |
 | 5.2 | Complete (sequential subset) | Implicit `serial` segmentation and statement-boundary preservation |
 | 5.3 | Complete (if/for/ref subset) | SDAG `if`, `for`, reference-matched `when` and asynchronous behavior tests |
-| 5.4 | In progress | Port Prefix Sum, verify every expected prefix with varying PEs and message arrival orders |
-| 5.5 | Planned | Extend to `overlap`, `case`, `while`, `forall`, and lifetime diagnostics |
+| 5.4 | Complete | Port Prefix Sum, verify every expected prefix with varying PEs and message arrival orders |
+| 5.5 | Complete (restricted subset) | Extend to `overlap`, `case`, `while`, `forall`, and lifetime diagnostics |
 | Later | Planned | Variable-size messages, richer entries, multi-file/module integration, source mapping |
 
 ## Fixed-size message slice (phase 3.1)
