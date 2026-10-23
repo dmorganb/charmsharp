@@ -6,7 +6,8 @@ reusing `charmxi`, `charmc`, and the unmodified Charm++ runtime.
 
 This is an incremental prototype, not a complete implementation of the
 `charmsharp-grammar-v0.1.md` design draft. It supports multiple top-level
-`chare` classes, one optional `mainchare`, and simple methods under `entry:`;
+`chare` classes, one optional `mainchare`, `group`, `nodegroup`,
+`array [ND] chare`, and simple methods under `entry:`;
 ordinary class members and surrounding C++ are retained as source text.
 
 ## Build and test
@@ -43,7 +44,9 @@ ordinary Charm++ application. The Counter example is a compile-only chare compon
 
 To run the compile-only integration check once `charmc` is available, use
 `make charm-check`. For a full executable example with `mainchare` and a worker,
-use `make charm-run`. GitHub Actions performs both checks against Charm++ v8.0.0.
+use `make charm-run`. Use `make charm-objects` for a program that creates a
+group, a nodegroup, and a one-dimensional chare array. GitHub Actions performs
+all three checks against Charm++ v8.0.0.
 Its integration job caches the compiled multicore toolchain with
 `actions/cache@v4`; the first run builds the toolchain, and later cache hits
 skip the checkout and build steps. The cache key pins the Charm++ version,
@@ -80,9 +83,11 @@ and the two generated include lines).
 
 ## Deliberate limitations
 
-- Multiple global-scope `chare` declarations and at most one `mainchare` are
-  supported; no namespaced chares, arrays, groups, nodegroups, messages,
-  readonly variables, inheritance, or SDAG yet.
+- Multiple global-scope `chare`, `group`, `nodegroup`, and `array [ND] chare`
+  declarations and at most one `mainchare` are supported. Array dimensions
+  are parsed structurally; the Charm++ toolchain validates supported sizes.
+  Namespaced types, messages, readonly variables, inheritance, and SDAG remain
+  unsupported.
 - Entry signatures must be constructors `Counter(...)` or `void method(...)`.
   Declarations and inline definitions work; out-of-line definitions remain
   untouched ordinary C++.
@@ -118,7 +123,7 @@ tests/tests.cpp                     translation and diagnostic regressions
 tests/cli_smoke.sh                  output and overwrite CLI test
 tests/fake_charm/                  minimal headers for C++ syntax smoke test
 tests/charm_smoke.sh                optional Charm++ compile check\ntests/charm_run.sh                  executable Charm++ test
-examples/Counter.csh               compile-only input\nexamples/Hello.csh                 executable mainchare and worker
+examples/Counter.csh               compile-only input\nexamples/Hello.csh                 executable mainchare and worker\nexamples/Objects.csh               executable group, nodegroup and array
 docs/roadmap.md                     increment plan and acceptance criteria
 ```
 
@@ -126,9 +131,9 @@ docs/roadmap.md                     increment plan and acceptance criteria
 
 The grammar document is an **extension grammar**, not a full C++20 grammar.
 For the first implementation, the parser recognizes only enough structure to
-find top-level chares and the boundaries of their entry methods. Opaque C++ method bodies
+find top-level parallel types and the boundaries of their entry methods. Opaque C++ method bodies
 are left alone. The lexer records offsets into the original input; the rewrite
-pass applies only three kinds of edits: `chare`/`mainchare` → `class`, generated CBase
+pass applies only three kinds of edits: parallel type declarations → `class`, generated CBase
 inheritance, and `entry:` → `public:`.
 
 This keeps the implementation small while leaving room to introduce SDAG
