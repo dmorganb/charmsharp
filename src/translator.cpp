@@ -82,19 +82,18 @@ public:
                 ++depth;
             } else if (is(i, "}")) {
                 if (depth != 0) --depth;
-            } else if (is(i, "chare") || is(i, "mainchare")) {
-                if (depth != 0) fail(i, "nested/namespace chares are not supported in phase 1");
+            } else if (is(i, "chare") || is(i, "mainchare") || is(i, "group") ||
+                       is(i, "nodegroup") || (is(i, "array") && is(i + 1, "["))) {
+                if (depth != 0) fail(i, "nested/namespace parallel types are not supported");
                 if (conditional_depth != 0)
-                    fail(i, "a chare inside a preprocessor conditional is not supported");
+                    fail(i, "a parallel type inside a preprocessor conditional is not supported");
                 i = parse_chare(i) - 1;
             } else if (depth == 0 &&
-                       (is(i, "group") || is(i, "nodegroup") ||
-                        is(i, "message") || is(i, "readonly") ||
-                        (is(i, "array") && is(i + 1, "[")))) {
+                       (is(i, "message") || is(i, "readonly"))) {
                 fail(i, "this Charm# declaration is reserved for a later milestone");
             }
         }
-        if (chares_.empty()) throw Diagnostic("expected a top-level 'chare' or 'mainchare' declaration", 0);
+        if (chares_.empty()) throw Diagnostic("expected a top-level parallel type declaration", 0);
 
         std::string cpp(source_);
         // Applying backwards keeps all source offsets stable.
@@ -150,10 +149,31 @@ private:
     }
 
     std::size_t parse_chare(std::size_t keyword) {
-        const std::string kind(is(keyword, "mainchare") ? "mainchare" : "chare");
-        const auto name = keyword + 1;
+        std::string kind;
+        auto name = keyword + 1;
+        if (is(keyword, "array")) {
+            // The lexer retains e.g. '1D' as a single numeric token. Spaces in
+            // '1 D' are also allowed; normalize both forms for the .ci output.
+            if (!is(name, "[")) fail(name, "expected '[' after array");
+            const auto dim_begin = name + 1;
+            const auto dim_end = matching(name, "[", "]", tokens_.size());
+            std::string dimension;
+            for (auto i = dim_begin; i < dim_end; ++i)
+                dimension += source_.substr(tokens_[i].begin, tokens_[i].end - tokens_[i].begin);
+            if (dimension.size() < 2 || dimension.back() != 'D' ||
+                !std::all_of(dimension.begin(), dimension.end() - 1, [](char c) {
+                    return c >= '0' && c <= '9';
+                }) || dimension[0] == '0')
+                fail(dim_begin, "array dimension must be a positive integer followed by D");
+            if (!is(dim_end + 1, "chare")) fail(dim_end + 1, "expected 'chare' after array dimension");
+            kind = "array [" + dimension + "]";
+            name = dim_end + 2;
+        } else {
+            kind = std::string(source_.substr(tokens_[keyword].begin,
+                                             tokens_[keyword].end - tokens_[keyword].begin));
+        }
         if (name >= tokens_.size() || tokens_[name].kind != Kind::Identifier)
-            fail(keyword, "expected a chare name");
+            fail(keyword, "expected a parallel type name");
         const std::string chare_name(source_.substr(tokens_[name].begin,
                                                     tokens_[name].end - tokens_[name].begin));
         if (std::any_of(chares_.begin(), chares_.end(), [&](const Chare& chare) {
@@ -163,12 +183,12 @@ private:
             return chare.kind == "mainchare";
         })) fail(keyword, "only one mainchare is allowed per module");
         const auto brace = name + 1;
-        if (is(brace, ":")) fail(brace, "chare inheritance is deferred in phase 1");
-        if (!is(brace, "{")) fail(brace, "expected '{' after chare name");
+        if (is(brace, ":")) fail(brace, "parallel type inheritance is deferred");
+        if (!is(brace, "{")) fail(brace, "expected '{' after parallel type name");
         const auto close = matching(brace, "{", "}", tokens_.size());
         if (!is(close + 1, ";")) fail(close, "expected ';' after chare body");
 
-        edits_.push_back({tokens_[keyword].begin, tokens_[keyword].end, "class"});
+        edits_.push_back({tokens_[keyword].begin, tokens_[name].begin, "class "});
         edits_.push_back({tokens_[name].end, tokens_[name].end,
                           " : public CBase_" + chare_name});
         chares_.push_back({kind, chare_name, {}});
