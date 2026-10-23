@@ -4,7 +4,7 @@ entry:
     Main(CkArgMsg* msg) : callbacks(0) {
         delete msg;
         float values[3] = {1.0f, 2.0f, 3.0f};
-        auto worker = CProxy_Worker::ckNew(thisProxy);
+        CProxy_Worker worker(CProxy_Worker::ckNew(thisProxy));
         worker.receive(3, values);
         worker.fixed(values);
     }
