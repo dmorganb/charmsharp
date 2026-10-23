@@ -117,6 +117,23 @@ public:
         throw std::runtime_error("public should not register entry methods");
 }
 
+void multiple_chares_and_mainchare() {
+    const auto output = charmsharp::translate(R"SRC(mainchare Main {
+entry:
+  Main(CkArgMsg* args) { delete args; }
+};
+chare Worker {
+entry:
+  Worker() { CkExit(); }
+  void ping(int value) { (void)value; }
+};
+)SRC", "Hello");
+    contains(output.interface_source, "mainchare Main {\n        entry Main(CkArgMsg* args);");
+    contains(output.interface_source, "chare Worker {\n        entry Worker();\n        entry void ping(int value);");
+    contains(output.cpp_source, "class Main : public CBase_Main");
+    contains(output.cpp_source, "class Worker : public CBase_Worker");
+}
+
 void diagnostics() {
     rejects("chare A { entry: int x; };", "only simple method");
     rejects("chare A { entry: int value(); };", "only 'void name");
@@ -124,7 +141,8 @@ void diagnostics() {
     rejects("chare A { entry: [[charm::threaded]] void f(); };", "attributes");
     rejects("chare A { entry: void f() { when ping() { } } };", "SDAG");
     rejects("chare A : public Base { entry: void f(); };", "inheritance");
-    rejects("chare A { entry: void f(); }; chare B {};", "exactly one");
+    rejects("chare A {}; chare A {};", "duplicate chare name");
+    rejects("mainchare Main {}; mainchare Other {};", "only one mainchare");
     rejects("namespace N { chare A { entry: void f(); }; }", "namespace");
     rejects("chare A { entry: void f(int x = 3); };", "default entry arguments");
     rejects("chare A { entry: void f(); void f(); };", "duplicate");
@@ -151,6 +169,7 @@ int main() {
     golden_counter();
     preserves_ordinary_cpp_and_literal_braces();
     multiple_sections_and_definitions();
+    multiple_chares_and_mainchare();
     diagnostics();
     std::cout << "PASS " << checks << " checks\n";
 }
