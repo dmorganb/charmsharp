@@ -64,7 +64,12 @@ validate() {
 
 # Multiple array sizes and processing-element counts; the original program's
 # deterministic per-element random delays induce varied arrival schedules.
-for pes in 1 2 4; do
+# Charm++ multicore refuses oversubscription on two-core GitHub runners.
+pe_counts="1"
+available_cores=$(nproc)
+if test "$available_cores" -ge 2; then pe_counts="$pe_counts 2"; fi
+if test "$available_cores" -ge 4; then pe_counts="$pe_counts 4"; fi
+for pes in $pe_counts; do
     for count in 2 5 8 11; do
         echo "Checking Prefix Sum N=$count +p$pes"
         (
@@ -80,4 +85,4 @@ for pes in 1 2 4; do
         diff -u "$tmp/reference.values" "$tmp/charmsharp.values"
     done
 done
-echo 'Prefix Sum: 12 Charm++/Charm# combinations match all expected values.'
+echo 'Prefix Sum: Charm++/Charm# combinations match all expected values.'
