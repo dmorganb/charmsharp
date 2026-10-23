@@ -6,13 +6,13 @@ entry:
         delete msg;
         CProxy_Worker worker = CProxy_Worker::ckNew(thisProxy);
         if (early) {
-            worker.deliver(1, 22);
-            worker.deliver(0, 20);
+            worker.deliver(1, 4);
+            worker.deliver(0, 2);
             worker.start();
         } else {
             worker.start();
-            worker.deliver(1, 22);
-            worker.deliver(0, 20);
+            worker.deliver(1, 4);
+            worker.deliver(0, 2);
         }
     }
     void done(int value) {
@@ -31,10 +31,10 @@ entry:
         total = 0;
         for (step = 0; step < 2; ++step) {
             when deliver[step](int tag, int value) {
-                total += value;
+                total = total * 10 + value;
             }
         }
-        if (total == 42) {
+        if (total == 24) {
             parent.done(total);
         } else {
             parent.done(-1);
