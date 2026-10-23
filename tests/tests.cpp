@@ -219,6 +219,25 @@ entry:
     contains(reordered.interface_source, "module Order {\n    message M;\n    chare A");
 }
 
+void readonly_globals() {
+    const auto output = charmsharp::translate(R"SRC(readonly int threshold;
+readonly double weights[3];
+mainchare Main {
+entry:
+    Main(CkArgMsg* args) { delete args; threshold = 42; }
+};
+)SRC", "ReadOnly");
+    contains(output.interface_source, "readonly int threshold;");
+    contains(output.interface_source, "readonly double weights[3];");
+    contains(output.cpp_source, "int threshold;");
+    contains(output.cpp_source, "double weights[3];");
+    ++checks;
+    if (output.cpp_source.find("readonly") != std::string::npos)
+        throw std::runtime_error("readonly keyword leaked into C++ output");
+    const auto alone = charmsharp::translate("readonly int size;", "Globals");
+    contains(alone.interface_source, "module Globals {\n    readonly int size;");
+}
+
 void diagnostics() {
     rejects("chare A { entry: int x; };", "only simple method");
     rejects("chare A { entry: int value(); };", "must return void");
@@ -256,6 +275,16 @@ void diagnostics() {
     rejects("message M {}; chare M {};", "duplicate");
     rejects("namespace N { message M {}; }", "namespace messages");
     rejects("#ifdef X\nmessage M {};\n#endif", "preprocessor conditional");
+    rejects("readonly int;", "expected readonly Type name");
+    rejects("readonly int* count;", "expected readonly Type name");
+    rejects("readonly unsigned int count;", "initializers, pointers and complex");
+    rejects("readonly int count = 3;", "initializers, pointers and complex");
+    rejects("readonly int values[];", "fixed numeric bound");
+    rejects("readonly int values[0];", "positive decimal integer");
+    rejects("readonly int values[2+1];", "fixed numeric bound");
+    rejects("readonly int x; readonly double x;", "duplicate");
+    rejects("namespace N { readonly int x; }", "global scope");
+    rejects("#if 0\nreadonly int x;\n#endif", "preprocessor conditional");
 
     const std::string source = "\n\nchare A {\nentry:\n  int value;\n};";
     try {
@@ -276,6 +305,7 @@ int main() {
     groups_and_arrays();
     attributed_entries();
     fixed_size_messages();
+    readonly_globals();
     diagnostics();
     std::cout << "PASS " << checks << " checks\n";
 }
