@@ -224,7 +224,33 @@ private:
     std::size_t parse_entry(std::size_t begin, std::size_t end, Chare& chare) {
         if (tokens_[begin].kind == Kind::Directive)
             fail(begin, "preprocessor directives between entry methods are deferred");
-        if (is(begin, "[")) fail(begin, "entry attributes are deferred in phase 1");
+
+        std::vector<std::string> attributes;
+        const auto entry_start = begin;
+        while (is(begin, "[") && is(begin + 1, "[")) {
+            // [[charm::threaded]] / [[charm::sync]] map directly to .ci
+            // attributes; remove them from the generated ordinary C++ class.
+            if (begin + 7 >= end || !is(begin + 2, "charm") ||
+                !is(begin + 3, ":") || !is(begin + 4, ":") ||
+                tokens_[begin + 5].kind != Kind::Identifier ||
+                !is(begin + 6, "]") || !is(begin + 7, "]"))
+                fail(begin, "expected [[charm::threaded]] or [[charm::sync]]");
+            const auto attribute = std::string(source_.substr(tokens_[begin + 5].begin,
+                                                              tokens_[begin + 5].end - tokens_[begin + 5].begin));
+            if (attribute != "threaded" && attribute != "sync")
+                fail(begin + 5, "unsupported Charm++ entry attribute");
+            if (std::find(attributes.begin(), attributes.end(), attribute) != attributes.end())
+                fail(begin, "duplicate Charm++ entry attribute");
+            attributes.push_back(attribute);
+            edits_.push_back({tokens_[begin].begin, tokens_[begin + 7].end, ""});
+            begin += 8;
+        }
+        if (is(begin, "[")) fail(begin, "unsupported entry attribute syntax");
+        if (begin == end) fail(entry_start, "expected entry method after attribute");
+
+        const bool threaded = std::find(attributes.begin(), attributes.end(), "threaded") != attributes.end();
+        const bool sync = std::find(attributes.begin(), attributes.end(), "sync") != attributes.end();
+        if (threaded && sync) fail(entry_start, "threaded and sync cannot be combined");
 
         std::size_t open = begin;
         while (open < end && !is(open, "(")) {
@@ -239,8 +265,14 @@ private:
                                                       tokens_[open - 1].end - tokens_[open - 1].begin));
         if (name == chare.name) {
             if (open != begin + 1) fail(begin, "constructor entry must have no return type");
+            if (!attributes.empty()) fail(entry_start, "entry constructors cannot have threaded or sync attributes");
         } else if (!(open == begin + 2 && is(begin, "void"))) {
-            fail(begin, "phase 1 supports only 'void name(...)' and constructors");
+            // Charm++ synchronous entries can return a pointer to a message.
+            if (!(sync && open == begin + 3 &&
+                  tokens_[begin].kind == Kind::Identifier && is(begin + 1, "*")))
+                fail(begin, "entry methods must return void, or a message pointer with [[charm::sync]]");
+        } else if (sync) {
+            fail(begin, "sync entries must return a message pointer");
         }
 
         const auto close = matching(open, "(", ")", end);
@@ -250,7 +282,9 @@ private:
         if (!is(close + 1, ";") && !is(close + 1, "{"))
             fail(close, "entry qualifiers, trailing return types and initializer lists are deferred");
 
-        const auto signature = trim(source_.substr(tokens_[begin].begin,
+        std::string signature;
+        for (const auto& attribute : attributes) signature += "[" + attribute + "] ";
+        signature += trim(source_.substr(tokens_[begin].begin,
                                                     tokens_[close].end - tokens_[begin].begin));
         if (std::find(chare.entries.begin(), chare.entries.end(), signature) != chare.entries.end())
             fail(begin, "duplicate entry method signature");
