@@ -35,12 +35,12 @@ validate() {
       /^Prefix\[/ {
         if (NF != 6 || $2 != "=" || $4 != "(expected" || $6 != "OK") bad = 1
         idx = substr($1, 8, length($1) - 8)
-        # Force numeric comparisons: awk may compare substr() and -v values as strings.
-        idx += 0
         val = $3
         expected_value = $5
         sub(/\)$/, "", expected_value)
         if (idx !~ /^[0-9]+$/ || val !~ /^[0-9]+$/ || expected_value !~ /^[0-9]+$/) bad = 1
+        # Force numeric index comparison: substr() otherwise retains string semantics.
+        idx += 0
         if (idx < 0 || idx >= n || seen[idx]++ || val != (idx + 1) * (idx + 2) / 2 ||
             expected_value != val) bad = 1
         print idx, val
