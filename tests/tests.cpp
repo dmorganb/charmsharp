@@ -500,6 +500,57 @@ void sdag_structure() {
             "expected SDAG receive body");
 }
 
+
+void basic_sdag_when_lowering() {
+    const auto implicit = charmsharp::translate(R"SRC(mainchare Main {
+entry:
+    Main(CkArgMsg* m) { delete m; }
+};
+chare Worker {
+    int last = 0;
+entry:
+    Worker() {}
+    void start() {
+        when deliver(int value) {
+            last = value;
+            CkExit();
+        }
+    }
+};)SRC", "BasicWhen");
+    contains(implicit.interface_source, "entry void deliver(int value);");
+    contains(implicit.interface_source, "entry void start() {");
+    contains(implicit.interface_source, "when deliver(int value) serial {");
+    contains(implicit.interface_source, "last = value;");
+    contains(implicit.cpp_source, "Worker_SDAG_CODE");
+    ++checks;
+    if (implicit.cpp_source.find("void start() {") != std::string::npos)
+        throw std::runtime_error("SDAG entry body leaked into C++");
+
+    const auto explicit_entry = charmsharp::translate(R"SRC(chare Worker {
+entry:
+    void deliver(int value);
+    void start() {
+        when deliver(int value) serial { CkExit(); }
+    }
+};)SRC", "ExplicitWhen");
+    contains(explicit_entry.interface_source, "entry void deliver(int value);");
+    contains(explicit_entry.interface_source, "when deliver(int value) serial {");
+    ++checks;
+    if (explicit_entry.cpp_source.find("void deliver(int value);") != std::string::npos)
+        throw std::runtime_error("explicit receive declaration leaked into C++");
+
+    rejects("chare A { entry: void recv(int value); void start() { when recv(float value) { CkExit(); } } };",
+            "incompatible explicit SDAG receive");
+    rejects("chare A { entry: void recv(int value) {} void start() { when recv(int value) { CkExit(); } } };",
+            "SDAG receive entry cannot have a C++ implementation");
+    rejects("chare A { entry: void start() { when recv[1](int n) { CkExit(); } } };",
+            "reference-matched");
+    rejects("chare A { entry: void start() { when a(int n), b(int m) { CkExit(); } } };",
+            "multiple receives");
+    rejects("chare A { entry: void start() { when a(int n) { CkExit(); } after(); } };",
+            "one unannotated void entry with one when");
+}
+
 void diagnostics() {
     rejects("chare A { entry: int x; };", "only simple method");
     rejects("chare A { entry: int value(); };", "must return void");
@@ -596,6 +647,7 @@ int main() {
     message_inheritance();
     parallel_inheritance();
     sdag_structure();
+    basic_sdag_when_lowering();
     diagnostics();
     std::cout << "PASS " << checks << " checks\n";
 }
