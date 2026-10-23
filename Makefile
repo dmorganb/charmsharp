@@ -5,7 +5,7 @@ CPPFLAGS += -Iinclude
 LIB_SOURCES = src/lexer.cpp src/translator.cpp
 HEADERS = src/lexer.hpp include/charmsharp/translator.hpp
 
-.PHONY: all test charm-check charm-run charm-objects charm-threaded charm-message charm-readonly charm-inheritance charm-message-inheritance charm-parallel-inheritance charm-benchmark-primes charm-benchmark-reduction charm-ctor-initializers charm-benchmark-jacobi2d clean
+.PHONY: all test charm-check charm-run charm-objects charm-threaded charm-message charm-readonly charm-inheritance charm-message-inheritance charm-parallel-inheritance charm-benchmark-primes charm-benchmark-reduction charm-ctor-initializers charm-benchmark-jacobi2d charm-marshalled-arrays clean
 all: build/charmsharp
 
 build/charmsharp: src/main.cpp $(LIB_SOURCES) $(HEADERS)
@@ -58,6 +58,9 @@ charm-ctor-initializers: build/charmsharp
 
 charm-benchmark-jacobi2d: build/charmsharp
 	sh tests/benchmark_jacobi2d.sh ./build/charmsharp
+
+charm-marshalled-arrays: build/charmsharp
+	sh tests/charm_run.sh ./build/charmsharp examples/MarshalledArrays.csh MarshalledArrays 'Hello from marshalled arrays: 6'
 
 clean:
 	rm -f build/charmsharp build/tests
