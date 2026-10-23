@@ -582,6 +582,18 @@ private:
             return "{\n" + lower_sdag_nodes(text, first_byte, node.children, chare) + "\n}";
         }
         if (node.kind == detail::SdagKind::If || node.kind == detail::SdagKind::For) {
+            if (node.kind == detail::SdagKind::For) {
+                auto token = std::size_t{0};
+                while (token < tokens_.size() &&
+                       tokens_[token].begin < first_byte + node.begin)
+                    ++token;
+                if (is(token, "for") && is(token + 1, "(")) {
+                    const auto type = token_text(token + 2);
+                    if (type == "int" || type == "auto" || type == "long" ||
+                        type == "unsigned" || type == "short" || type == "std")
+                        fail(token + 2, "SDAG for index must be a persistent chare field");
+                }
+            }
             std::string lowered;
             auto cursor = node.begin;
             for (const auto& child : node.children) {
