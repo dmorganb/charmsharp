@@ -11,11 +11,22 @@ unsupported entry attributes, return types, and remaining declaration features.
 | 2.3 | Complete (basic forms) | Groups, nodegroups, 1D and 2D arrays compiled and exercised against Charm++ |
 | 2.4 | Initial subset complete | `threaded` and `sync` attributes; `void` and simple synchronous message-pointer returns |
 | 2.5 | Complete as infrastructure | Charm++ v8.0.0 pinned integration: compile, link and execute programs on GitHub Actions, with cached toolchain |
-| 3 | Next | Single SDAG `when`; implicit receive entry declaration; first safe `serial` lowering |
-| 4 | Planned | SDAG references, `overlap`, `case`, loops, lifetime diagnostics, runtime equivalence tests |
-| 5 | Planned | Remaining `.ci` declarations (`message`, `readonly`), inheritance, richer entries, multi-file/module integration, source mapping |
+| 3.1 | In progress | Fixed-size `message` declarations and executable send/receive integration |
+| 3.2 | Next | `readonly` global declarations and initialization semantics |
+| 3.3 | Planned | Parallel-type inheritance and other declaration forms |
+| 4 | Planned | Single SDAG `when`; implicit receive entry declaration; first safe `serial` lowering |
+| 5 | Planned | SDAG references, `overlap`, `case`, loops, lifetime diagnostics, runtime equivalence tests |
+| Later | Planned | Variable-size messages, richer entries, multi-file/module integration, source mapping |
 
-## Next SDAG slice
+## Fixed-size message slice (phase 3.1)
+
+1. Lower top-level `message Name { ... };` to `message Name;` in `.ci` and
+   `class Name : public CMessage_Name { ... };` in C++.
+2. Preserve fixed-size fields and ordinary member methods; reject unsized
+   arrays and inheritance until their semantics are implemented.
+3. Compile and execute a program transferring a custom message in CI.
+
+## Later SDAG slice
 
 1. Pick one executable fixture with a mainchare and a chare using a single
    `when` receive.
