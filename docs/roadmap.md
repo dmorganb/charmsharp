@@ -13,8 +13,8 @@ unsupported entry attributes, return types, and remaining declaration features.
 | 2.5 | Complete as infrastructure | Charm++ v8.0.0 pinned integration: compile, link and execute programs on GitHub Actions, with cached toolchain |
 | 3.1 | Complete | Fixed-size `message` declarations and executable send/receive integration |
 | 3.2 | Complete | `readonly` global declarations and initialization semantics |
-| 3.3.1 | In progress | Ordinary C++ inheritance with local base resolution, multiple bases, and Charm++ integration |
-| 3.3.2 | Next | Message inheritance, separately validated against Charm++ |
+| 3.3.1 | Complete | Ordinary C++ inheritance with local base resolution, multiple bases, and Charm++ integration |
+| 3.3.2 | In progress | Message inheritance, separately validated against Charm++ |
 | 3.3.3 | Planned | Parallel-base inheritance, cross-file resolution, and complex base specifiers |
 | 4 | Planned | Single SDAG `when`; implicit receive entry declaration; first safe `serial` lowering |
 | 5 | Planned | SDAG references, `overlap`, `case`, loops, lifetime diagnostics, runtime equivalence tests |
