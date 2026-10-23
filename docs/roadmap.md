@@ -21,8 +21,8 @@ unsupported entry attributes, return types, and remaining declaration features.
 | 4.1 | Complete | Support `[[charm::reductiontarget]]` and port Reduction; compare runtime results |
 | 4.2 | Complete | Structurally parse constructor initializer lists and retain them verbatim in C++ while emitting signature-only `.ci` entries; validate with Charm++ runtime |
 | 4.3 | Complete | Implement entry `T data[n]` marshalling syntax: preserve bounds in `.ci`, lower C++ signatures to `T* data`, validate named/literal bounds and remote copying; port Jacobi2D |
-| 5.0 | In progress | Recognize SDAG bodies and build source-ranged structural nodes; no SDAG emission |
-| 5.1 | Planned | Single `when`, receive entry registration, SDAG C++ glue, and runtime comparison |
+| 5.0 | Complete | Recognize SDAG bodies and build source-ranged structural nodes; no SDAG emission |
+| 5.1 | In progress | Single `when`, receive entry registration, SDAG C++ glue, and runtime comparison |
 | 5.2 | Planned | Implicit `serial` segmentation and statement-boundary preservation |
 | 5.3 | Planned | SDAG `if`, `for`, reference-matched `when` and asynchronous behavior tests |
 | 5.4 | Planned | Port Prefix Sum, verify every expected prefix with varying PEs and message arrival orders |
@@ -65,8 +65,8 @@ unsupported entry attributes, return types, and remaining declaration features.
 ## Phase 5: SDAG slices
 
 1. **5.0:** Introduce a separate structural SDAG parser that distinguishes ordinary
-   C++ from SDAG-specific forms and retains byte ranges. It is deliberately
-   non-emitting: Charm# still rejects SDAG-containing entries until 5.1.
+   C++ from SDAG-specific forms and retains byte ranges. It initially provided
+   diagnostics only; the parser now feeds the limited Phase 5.1 lowering.
 2. **5.1:** Lower a single `when` into conventional Charm++ SDAG `.ci`, add
    implicit or validated explicit receive entry declarations, and emit the
    Charm++ `_SDAG_CODE` C++ glue. Test message arrival before/after a wait.
@@ -91,3 +91,18 @@ Charm++ fixture and compile and execute through the pinned Charm++ CI toolchain.
   mapping or a dedicated source map.
 - Marshalled parameter legality and valid PUP/message semantics remain
   responsibilities of Charm++ until semantic validation is explicitly added.
+
+### Phase 5.1 supported subset
+
+- A `void` entry method body consisting of exactly one `when receive(Type name) { ... }`
+  or `when receive(Type name) serial { ... }` statement. Its serial body must
+  consist of ordinary semicolon-terminated C++ statements.
+- A receive is implicitly registered as a Charm++ entry, or matched to an
+  explicit entry declaration with the same signature. The receive method is
+  implemented by Charmxi's generated SDAG code, not a user-written C++ body.
+- The generated `.ci` contains the SDAG entry body; the generated C++ class
+  has its ordinary methods preserved and includes `Name_SDAG_CODE`.
+- Test both queued (early) and late arrivals against a handwritten Charm++
+  fixture on two processing elements.
+- Multiple waits, top-level serial code, nested conditions, reference matches,
+  non-void SDAG entries, and constructor SDAG are reserved for later phases.
