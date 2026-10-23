@@ -1,5 +1,6 @@
 #include "charmsharp/translator.hpp"
 #include "lexer.hpp"
+#include "sdag.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -585,10 +586,19 @@ private:
 
         if (is(body, ";")) return body + 1;
         const auto body_end = matching(body, "{", "}", end);
+        // Phase 5.0 recognizes and validates the SDAG structure but does
+        // not lower it yet. Keep this gate until SDAG code generation is ready.
         for (std::size_t i = body + 1; i < body_end; ++i) {
             if (is(i, "when") || is(i, "overlap") || is(i, "forall") ||
                 (is(i, "case") && is(i + 1, "{"))) {
-                fail(i, "SDAG syntax is deferred; phase 1 accepts ordinary C++ bodies only");
+                const auto first_byte = tokens_[body].begin;
+                const auto text = source_.substr(first_byte, tokens_[body_end].end - first_byte);
+                try {
+                    (void)detail::parse_sdag_body(text);
+                } catch (const detail::SdagError& error) {
+                    throw Diagnostic(error.what(), first_byte + error.offset());
+                }
+                fail(i, "SDAG lowering is deferred until Phase 5.1");
             }
         }
         return is(body_end + 1, ";") ? body_end + 2 : body_end + 1;
