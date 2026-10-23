@@ -1,13 +1,13 @@
-# Charm# — phase 1 prototype
+# Charm# — incremental prototype
 
 Charm# is a lightweight C++20 source-to-source extension to Charm++. It aims to
 reduce duplication between a C++ chare class and its `.ci` declaration, while
 reusing `charmxi`, `charmc`, and the unmodified Charm++ runtime.
 
-This is **milestone 1**, not a complete implementation of the
-`charmsharp-grammar-v0.1.md` design draft. The prototype supports exactly one
-top-level `chare` class and simple methods under `entry:`; ordinary class
-members and the surrounding C++ are retained as source text.
+This is an incremental prototype, not a complete implementation of the
+`charmsharp-grammar-v0.1.md` design draft. It supports multiple top-level
+`chare` classes, one optional `mainchare`, and simple methods under `entry:`;
+ordinary class members and surrounding C++ are retained as source text.
 
 ## Build and test
 
@@ -39,11 +39,15 @@ charmc -c CounterModule.cpp
 
 `charmc` invokes the Charm++ interface translator and C++ compiler; Charm#
 itself does not implement either. This produces an object for linking into an
-ordinary Charm++ application. The example is a chare component, not a
-standalone executable (there is no `mainchare` yet).
+ordinary Charm++ application. The Counter example is a compile-only chare component.
 
-To run that compile-only integration check automatically once `charmc` is
-available, use `make charm-check`.
+To run the compile-only integration check once `charmc` is available, use
+`make charm-check`. For a full executable example with `mainchare` and a worker,
+use `make charm-run`. GitHub Actions performs both checks against Charm++ v8.0.0.
+Its integration job caches the compiled multicore toolchain with
+`actions/cache@v4`; the first run builds the toolchain, and later cache hits
+skip the checkout and build steps. The cache key pins the Charm++ version,
+architecture, Ubuntu version, and build configuration.
 
 ## Phase 1 translation
 
@@ -76,8 +80,9 @@ and the two generated include lines).
 
 ## Deliberate limitations
 
-- Exactly one global-scope `chare`; no namespaces, `mainchare`, arrays, groups,
-  nodegroups, messages, readonly variables, inheritance, or SDAG yet.
+- Multiple global-scope `chare` declarations and at most one `mainchare` are
+  supported; no namespaced chares, arrays, groups, nodegroups, messages,
+  readonly variables, inheritance, or SDAG yet.
 - Entry signatures must be constructors `Counter(...)` or `void method(...)`.
   Declarations and inline definitions work; out-of-line definitions remain
   untouched ordinary C++.
@@ -112,8 +117,8 @@ src/main.cpp                        file-based CLI
 tests/tests.cpp                     translation and diagnostic regressions
 tests/cli_smoke.sh                  output and overwrite CLI test
 tests/fake_charm/                  minimal headers for C++ syntax smoke test
-tests/charm_smoke.sh                optional Charm++ compile check
-examples/Counter.csh               minimal input
+tests/charm_smoke.sh                optional Charm++ compile check\ntests/charm_run.sh                  executable Charm++ test
+examples/Counter.csh               compile-only input\nexamples/Hello.csh                 executable mainchare and worker
 docs/roadmap.md                     increment plan and acceptance criteria
 ```
 
@@ -121,9 +126,9 @@ docs/roadmap.md                     increment plan and acceptance criteria
 
 The grammar document is an **extension grammar**, not a full C++20 grammar.
 For the first implementation, the parser recognizes only enough structure to
-find one chare and the boundaries of its entry methods. Opaque C++ method bodies
+find top-level chares and the boundaries of their entry methods. Opaque C++ method bodies
 are left alone. The lexer records offsets into the original input; the rewrite
-pass applies only three kinds of edits: `chare` → `class`, generated CBase
+pass applies only three kinds of edits: `chare`/`mainchare` → `class`, generated CBase
 inheritance, and `entry:` → `public:`.
 
 This keeps the implementation small while leaving room to introduce SDAG
