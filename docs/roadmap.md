@@ -1,34 +1,37 @@
 # Incremental implementation roadmap
 
-This roadmap follows `charmsharp-grammar-v0.1.md` without treating its
-unspecified C++ recognition boundaries as implemented facts.
+This roadmap tracks the implementation against `charmsharp-grammar-v0.1.md`.
+See [language coverage](language-coverage.md) for the detailed supported syntax,
+unsupported entry attributes, return types, and remaining declaration features.
 
-| Milestone | Scope | Acceptance criteria |
+| Milestone | Status | Scope / acceptance |
 | --- | --- | --- |
-| 1 — current | One `chare`, simple `entry:` method declarations/definitions, `.ci` and `.cpp` generation | Golden translation, lexical preservation, diagnostics, CLI tests |
-| 1b — validation | Compile generated files with pinned Charm++ release | `charmc` accepts `.ci` and `.cpp` for example; one existing `mainchare` invokes the chare |
-| 2 | `mainchare`, `array [nD] chare`, module naming / multi-file build integration | Cross-file examples compile and run; no declaration collisions |
-| 3 | SDAG `when` with implicit `.ci` receive entries; infer `serial` for straight-line runs | Compare generated output to handwritten SDAG; reject cross-suspension locals |
-| 4 | `overlap`, `case`, loops, explicit receive signature validation | Compilation and runtime checks for ordering and matching |
-| 5 | Attributes, messages, readonly, groups, inheritance, complex signatures | Grammar conformance suite and backwards-compatible pass-through cases |
+| Phase 1 | Complete | Handwritten lexer and structural parser; source-range edits; one chare, entry declarations, `.ci` and C++ emission; regression tests |
+| 2.1 / 2.2 | Complete | Multiple chares and `mainchare`/`mainmodule`; runnable Hello World |
+| 2.3 | Complete (basic forms) | Groups, nodegroups, 1D and 2D arrays compiled and exercised against Charm++ |
+| 2.4 | Initial subset complete | `threaded` and `sync` attributes; `void` and simple synchronous message-pointer returns |
+| 2.5 | Complete as infrastructure | Charm++ v8.0.0 pinned integration: compile, link and execute programs on GitHub Actions, with cached toolchain |
+| 3 | Next | Single SDAG `when`; implicit receive entry declaration; first safe `serial` lowering |
+| 4 | Planned | SDAG references, `overlap`, `case`, loops, lifetime diagnostics, runtime equivalence tests |
+| 5 | Planned | Remaining `.ci` declarations (`message`, `readonly`), inheritance, richer entries, multi-file/module integration, source mapping |
 
-## Suggested first integration fixture
+## Next SDAG slice
 
-Pair the generated `Counter` chare with a conventional handwritten Charm++
-`mainchare` declared in an existing `.ci` file and a C++ implementation that
-constructs `CProxy_Counter` and invokes `increment`. This tests the generated
-proxy interface while keeping phase 1 limited to exactly one source-level
-`chare`. Lock the Charm++ version for reproducibility before making runtime
-claims.
+1. Pick one executable fixture with a mainchare and a chare using a single
+   `when` receive.
+2. Generate conventional SDAG in the `.ci` file, including a receive entry;
+   preserve the non-SDAG C++ parts and insert only the C++ glue required by
+   Charm++.
+3. Compare against an equivalent handwritten Charm++ SDAG example.
+4. Reject ambiguous C++ constructs and invalid cross-`when` local lifetimes
+   rather than guessing.
 
-## Known parser boundaries to revisit
+## Known parser boundaries
 
-1. Balanced scanning is lexical, not full C++ parsing. Test templates,
-   lambdas, requires clauses, attributes, operators, and macro-heavy classes
-   before permitting those signatures.
-2. Separate preprocessing policy from C++ pass-through behavior: generated
-   Charm# declarations inside `#if` are intentionally rejected for now.
-3. Source-range edits preserve normal C++ formatting but need line mappings
-   for useful diagnostics in generated `.cpp` and `.ci` files.
-4. SDAG support must distinguish ordinary C++ control flow from suspension
-   points, and must never invent automatic variable lifetime extension.
+- Lexical balance is not a full C++ parser; templates, lambdas, requires
+  clauses, macros and qualified signatures need targeted tests.
+- Conditional preprocessing of parallel declarations is rejected.
+- Diagnostics use source offsets but emitted sources still lack `#line`
+  mapping or a dedicated source map.
+- Marshalled parameter legality and valid PUP/message semantics remain
+  responsibilities of Charm++ until semantic validation is explicitly added.
