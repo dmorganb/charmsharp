@@ -423,7 +423,7 @@ private:
         edits_.push_back({tokens_[name].end, tokens_[brace].begin,
                           " : public CBase_" + chare_name +
                           (bases.cpp.empty() ? " " : ", " + bases.cpp + " ")});
-        chares_.push_back({kind, chare_name, bases.parallel, {}});
+        chares_.push_back({kind, chare_name, bases.parallel, {}, {}, {}, {}, false});
         parse_members(brace + 1, close, chares_.back());
         auto& chare = chares_.back();
         for (const auto& receive : chare.receives) {
