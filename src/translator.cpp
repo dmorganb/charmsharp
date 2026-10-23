@@ -38,6 +38,12 @@ struct Edit {
     std::string replacement;
 };
 
+struct Chare {
+    std::string kind;
+    std::string name;
+    std::vector<std::string> entries;
+};
+
 std::string_view trim(std::string_view text) {
     while (!text.empty() && std::isspace(static_cast<unsigned char>(text.front())))
         text.remove_prefix(1);
@@ -76,21 +82,19 @@ public:
                 ++depth;
             } else if (is(i, "}")) {
                 if (depth != 0) --depth;
-            } else if (is(i, "chare")) {
+            } else if (is(i, "chare") || is(i, "mainchare")) {
                 if (depth != 0) fail(i, "nested/namespace chares are not supported in phase 1");
                 if (conditional_depth != 0)
                     fail(i, "a chare inside a preprocessor conditional is not supported");
-                if (seen_chare_) fail(i, "phase 1 supports exactly one chare per source");
                 i = parse_chare(i) - 1;
-                seen_chare_ = true;
             } else if (depth == 0 &&
-                       (is(i, "mainchare") || is(i, "group") || is(i, "nodegroup") ||
+                       (is(i, "group") || is(i, "nodegroup") ||
                         is(i, "message") || is(i, "readonly") ||
                         (is(i, "array") && is(i + 1, "[")))) {
                 fail(i, "this Charm# declaration is reserved for a later milestone");
             }
         }
-        if (!seen_chare_) throw Diagnostic("expected one top-level 'chare' declaration", 0);
+        if (chares_.empty()) throw Diagnostic("expected a top-level 'chare' or 'mainchare' declaration", 0);
 
         std::string cpp(source_);
         // Applying backwards keeps all source offsets stable.
@@ -104,11 +108,14 @@ public:
         if (cpp.empty() || cpp.back() != '\n') cpp += '\n';
         cpp += "#include \"" + module_ + ".def.h\"\n";
 
-        std::string ci = "module " + module_ + " {\n    chare " + chare_ + " {\n";
-        for (const auto& signature : entries_) {
-            ci += "        entry " + signature + ";\n";
+        std::string ci = "module " + module_ + " {\n";
+        for (const auto& chare : chares_) {
+            ci += "    " + chare.kind + " " + chare.name + " {\n";
+            for (const auto& signature : chare.entries)
+                ci += "        entry " + signature + ";\n";
+            ci += "    };\n";
         }
-        ci += "    };\n};\n";
+        ci += "};\n";
         return {std::move(ci), std::move(cpp)};
     }
 
@@ -117,9 +124,7 @@ private:
     std::string module_;
     std::vector<Token> tokens_;
     std::vector<Edit> edits_;
-    std::vector<std::string> entries_;
-    std::string chare_;
-    bool seen_chare_ = false;
+    std::vector<Chare> chares_;
 
     bool is(std::size_t i, std::string_view word) const {
         return i < tokens_.size() &&
@@ -142,11 +147,18 @@ private:
     }
 
     std::size_t parse_chare(std::size_t keyword) {
+        const std::string kind(is(keyword, "mainchare") ? "mainchare" : "chare");
         const auto name = keyword + 1;
         if (name >= tokens_.size() || tokens_[name].kind != Kind::Identifier)
             fail(keyword, "expected a chare name");
-        chare_ = std::string(source_.substr(tokens_[name].begin,
-                                           tokens_[name].end - tokens_[name].begin));
+        const std::string chare_name(source_.substr(tokens_[name].begin,
+                                                    tokens_[name].end - tokens_[name].begin));
+        if (std::any_of(chares_.begin(), chares_.end(), [&](const Chare& chare) {
+            return chare.name == chare_name;
+        })) fail(name, "duplicate chare name");
+        if (kind == "mainchare" && std::any_of(chares_.begin(), chares_.end(), [](const Chare& chare) {
+            return chare.kind == "mainchare";
+        })) fail(keyword, "only one mainchare is allowed per module");
         const auto brace = name + 1;
         if (is(brace, ":")) fail(brace, "chare inheritance is deferred in phase 1");
         if (!is(brace, "{")) fail(brace, "expected '{' after chare name");
@@ -155,12 +167,13 @@ private:
 
         edits_.push_back({tokens_[keyword].begin, tokens_[keyword].end, "class"});
         edits_.push_back({tokens_[name].end, tokens_[name].end,
-                          " : public CBase_" + chare_});
-        parse_members(brace + 1, close);
+                          " : public CBase_" + chare_name});
+        chares_.push_back({kind, chare_name, {}});
+        parse_members(brace + 1, close, chares_.back());
         return close + 2;
     }
 
-    void parse_members(std::size_t begin, std::size_t end) {
+    void parse_members(std::size_t begin, std::size_t end, Chare& chare) {
         int brace_depth = 0;
         bool in_entry = false;
         for (std::size_t i = begin; i < end;) {
@@ -176,7 +189,7 @@ private:
                 continue;
             }
             if (brace_depth == 0 && in_entry) {
-                i = parse_entry(i, end);
+                i = parse_entry(i, end, chare);
                 continue;
             }
             if (is(i, "{")) ++brace_depth;
@@ -185,7 +198,7 @@ private:
         }
     }
 
-    std::size_t parse_entry(std::size_t begin, std::size_t end) {
+    std::size_t parse_entry(std::size_t begin, std::size_t end, Chare& chare) {
         if (tokens_[begin].kind == Kind::Directive)
             fail(begin, "preprocessor directives between entry methods are deferred");
         if (is(begin, "[")) fail(begin, "entry attributes are deferred in phase 1");
@@ -201,7 +214,7 @@ private:
 
         const auto name = std::string(source_.substr(tokens_[open - 1].begin,
                                                       tokens_[open - 1].end - tokens_[open - 1].begin));
-        if (name == chare_) {
+        if (name == chare.name) {
             if (open != begin + 1) fail(begin, "constructor entry must have no return type");
         } else if (!(open == begin + 2 && is(begin, "void"))) {
             fail(begin, "phase 1 supports only 'void name(...)' and constructors");
@@ -216,9 +229,9 @@ private:
 
         const auto signature = trim(source_.substr(tokens_[begin].begin,
                                                     tokens_[close].end - tokens_[begin].begin));
-        if (std::find(entries_.begin(), entries_.end(), signature) != entries_.end())
+        if (std::find(chare.entries.begin(), chare.entries.end(), signature) != chare.entries.end())
             fail(begin, "duplicate entry method signature");
-        entries_.emplace_back(signature);
+        chare.entries.emplace_back(signature);
 
         if (is(close + 1, ";")) return close + 2;
         const auto body_end = matching(close + 1, "{", "}", end);
