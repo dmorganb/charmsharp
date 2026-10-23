@@ -102,3 +102,8 @@ jobs:
         run: |
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
           make charm-benchmark-jacobi2d
+
+      - name: Check literal and named bound array marshalling
+        run: |
+          export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
+          make charm-marshalled-arrays
