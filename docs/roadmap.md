@@ -82,6 +82,19 @@ unsupported entry attributes, return types, and remaining declaration features.
 Every emitting slice must compare its `.ci` structure to a handwritten
 Charm++ fixture and compile and execute through the pinned Charm++ CI toolchain.
 
+## SDAG suspension and variable lifetime
+
+Phase 5.3 exposed a limitation in the underlying Charmxi-generated continuation
+methods: a loop-local index declared as `for (int step = ... )` may not remain
+in scope after a `when`. The handwritten Charm++ reference produced the same
+compilation error. Charm# v0.1 uses a persistent chare field instead and
+conservatively rejects common unsupported loop-local declarations.
+
+The workaround is not per-invocation storage: overlapping SDAG invocations can
+conflict if they mutate the same chare field. For the observed error, tested
+workaround, concurrency tradeoffs, and possible future compiler enhancement,
+see [SDAG variable lifetime](sdag-variable-lifetime.md).
+
 ## Known parser boundaries
 
 - Lexical balance is not a full C++ parser; templates, lambdas, requires
