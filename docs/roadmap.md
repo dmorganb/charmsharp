@@ -25,7 +25,7 @@ unsupported entry attributes, return types, and remaining declaration features.
 | 5.1 | Complete (single-when slice) | Single `when`, receive entry registration, SDAG C++ glue, and runtime comparison |
 | 5.2 | Complete (sequential subset) | Implicit `serial` segmentation and statement-boundary preservation |
 | 5.3 | Complete (if/for/ref subset) | SDAG `if`, `for`, reference-matched `when` and asynchronous behavior tests |
-| 5.4 | Planned | Port Prefix Sum, verify every expected prefix with varying PEs and message arrival orders |
+| 5.4 | In progress | Port Prefix Sum, verify every expected prefix with varying PEs and message arrival orders |
 | 5.5 | Planned | Extend to `overlap`, `case`, `while`, `forall`, and lifetime diagnostics |
 | Later | Planned | Variable-size messages, richer entries, multi-file/module integration, source mapping |
 
@@ -152,3 +152,19 @@ see [SDAG variable lifetime](sdag-variable-lifetime.md).
 - Nested `when` bodies, `while`, `forall`, `overlap`, and `case` are still
   deferred. The compiler does not implement C++ variable capture or promote
   pre-wait local variables into persistent storage.
+
+### Phase 5.4 Prefix Sum benchmark
+
+- Keep the pinned `benchmarks/prefix-sum/charmpp/` sources unchanged.
+- Port the same parallel prefix algorithm to a single Charm# `.csh` source,
+  using already implemented `readonly`, 1D array, reduction target, SDAG
+  `for`/`if` and reference-matched `when`.
+- Compile both forms with Charm++ v8.0.0 and verify the inclusive prefix of
+  input `1, 2, ..., N`: element `i` must produce `(i+1)*(i+2)/2` exactly once.
+- Normalize results by index (messages can arrive in different orders), reject
+  missing/duplicate/incorrect outputs, and compare both implementations.
+- Exercise multiple element counts on +p1 and +p2, and +p4 when four
+  processing cores are available; avoid Charm++ multicore oversubscription on
+  two-core CI runners. Original jittered sends vary communication timing.
+- **Complete:** the C++20 tests and Charm++ v8.0.0 integration job pass for
+  the pinned reference and transpiled port, with every prefix checked.

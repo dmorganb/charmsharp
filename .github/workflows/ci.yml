@@ -122,3 +122,8 @@ jobs:
         run: |
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
           make charm-sdag-control
+
+      - name: Compare every Prefix Sum value across sizes and PEs
+        run: |
+          export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
+          make charm-benchmark-prefix-sum
