@@ -5,15 +5,25 @@
 #include <cstdint>
 #include <map>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace charm_metrics {
 struct Counts {
     std::map<std::string, std::uint64_t> operators;
     std::map<std::string, std::uint64_t> operands;
-    void add(const std::vector<Token>& tokens) {
-        for (const auto& token : tokens)
+    // A sensitivity variant excludes only structural punctuation, not semantic operators.
+    static bool structural_punctuation(std::string_view token) {
+        return token == ";" || token == "," || token == "(" || token == ")" ||
+               token == "{" || token == "}" || token == "[" || token == "]" ||
+               token == ":";
+    }
+    void add(const std::vector<Token>& tokens, bool include_punctuation = true) {
+        for (const auto& token : tokens) {
+            if (!include_punctuation && token.category == Category::Operator &&
+                structural_punctuation(token.spelling)) continue;
             ++(token.category == Category::Operator ? operators : operands)[token.spelling];
+        }
     }
     void merge(const Counts& other) {
         for (const auto& [name, count] : other.operators) operators[name] += count;
