@@ -18,9 +18,12 @@ jobs:
       - name: Analyze all paired benchmark sources
         run: |
           make -C tools/charm-metrics charm-metrics
-          tools/charm-metrics/charm-metrics benchmark --root benchmarks --format json > halstead-results.json
-          tools/charm-metrics/charm-metrics benchmark --root benchmarks --format csv > halstead-results.csv
-          tools/charm-metrics/charm-metrics benchmark --root benchmarks --format text
+          tools/charm-metrics/charm-metrics benchmark --root benchmarks --punctuation include --format json > halstead-results.json
+          tools/charm-metrics/charm-metrics benchmark --root benchmarks --punctuation include --format csv > halstead-results.csv
+          tools/charm-metrics/charm-metrics benchmark --root benchmarks --punctuation include --format text
+          tools/charm-metrics/charm-metrics benchmark --root benchmarks --punctuation exclude --format json > halstead-results-no-punctuation.json
+          tools/charm-metrics/charm-metrics benchmark --root benchmarks --punctuation exclude --format csv > halstead-results-no-punctuation.csv
+          tools/charm-metrics/charm-metrics benchmark --root benchmarks --punctuation exclude --format text
       - name: Upload reproducible results
         uses: actions/upload-artifact@v4
         with:
@@ -28,3 +31,5 @@ jobs:
           path: |
             halstead-results.json
             halstead-results.csv
+            halstead-results-no-punctuation.json
+            halstead-results-no-punctuation.csv
