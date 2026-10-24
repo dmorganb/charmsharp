@@ -1,0 +1,30 @@
+name: Halstead benchmark metrics
+
+on:
+  pull_request:
+    paths:
+      - 'tools/charm-metrics/**'
+      - 'benchmarks/**'
+      - '.github/workflows/metrics.yml'
+  workflow_dispatch:
+
+jobs:
+  metrics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test metric analyzer
+        run: make -C tools/charm-metrics test
+      - name: Analyze all paired benchmark sources
+        run: |
+          make -C tools/charm-metrics charm-metrics
+          tools/charm-metrics/charm-metrics benchmark --root benchmarks --format json > halstead-results.json
+          tools/charm-metrics/charm-metrics benchmark --root benchmarks --format csv > halstead-results.csv
+          tools/charm-metrics/charm-metrics benchmark --root benchmarks --format text
+      - name: Upload reproducible results
+        uses: actions/upload-artifact@v4
+        with:
+          name: halstead-results
+          path: |
+            halstead-results.json
+            halstead-results.csv
