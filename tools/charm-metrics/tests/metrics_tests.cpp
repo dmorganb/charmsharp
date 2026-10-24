@@ -25,4 +25,15 @@ int main() {
     assert(merged.operators.size() == 2);
     assert(merged.operands.at("x") == 3);
     assert(merged.operands.at("y") == 1);
+    auto sample = lex("int n = 1; fn(n); n += 2;", Language::Cpp);
+    Counts inclusive, no_punctuation;
+    inclusive.add(sample);
+    no_punctuation.add(sample, false);
+    assert(inclusive.operators.at(";") == 3);
+    assert(!no_punctuation.operators.contains(";"));
+    assert(no_punctuation.operators.contains("="));
+    assert(no_punctuation.operators.contains("+="));
+    assert(inclusive.operands == no_punctuation.operands);
+    assert(calculate(no_punctuation).N1 < calculate(inclusive).N1);
+
 }
