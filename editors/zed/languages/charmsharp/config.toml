@@ -1,0 +1,7 @@
+name = "Charm#"
+grammar = "cpp"
+path_suffixes = ["csh"]
+line_comments = ["// "]
+block_comment = ["/*", "*/"]
+tab_size = 4
+hard_tabs = false
