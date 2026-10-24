@@ -26,4 +26,18 @@ int main() {
     try { (void)lex("/* unclosed", Language::Cpp); }
     catch (const std::runtime_error&) { threw = true; }
     assert(threw);
+    // Value keywords are literal operands; Charm extension keywords are context-specific.
+    auto literals = lex("false true nullptr", Language::Cpp);
+    assert(literals.size() == 3);
+    for (const auto& t : literals) assert(t.category == Category::Operand);
+    auto normal = lex("int entry = 0; int array = entry; int when = 1;", Language::Cpp);
+    for (const auto& t : normal) {
+        if (t.spelling == "entry" || t.spelling == "array" || t.spelling == "when")
+            assert(t.category == Category::Operand);
+    }
+    auto interface_tokens = lex("entry void ping();", Language::CharmInterface);
+    assert(interface_tokens[0].category == Category::Operator);
+    auto sharp_tokens = lex("array [1D] chare Grid { entry: void ping(); };", Language::CharmSharp);
+    assert(sharp_tokens[0].category == Category::Operator);
+
 }
