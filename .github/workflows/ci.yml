@@ -9,12 +9,44 @@ permissions:
 
 jobs:
   test:
+    name: Unit and CLI tests (${{ matrix.compiler }})
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [g++, clang++]
+    env:
+      CXX: ${{ matrix.compiler }}
     steps:
       - uses: actions/checkout@v6
       - name: Build and run tests
-        run: make test
+        run: make test CXXFLAGS="-std=c++20 -O2 -Wall -Wextra -Wpedantic -Werror"
+
+  sanitizers:
+    name: Address and undefined-behavior sanitizers
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      CXX: clang++
+      ASAN_OPTIONS: detect_leaks=1:halt_on_error=1:log_path=${{ runner.temp }}/charmsharp-asan
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1:log_path=${{ runner.temp }}/charmsharp-ubsan
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build and run instrumented unit and CLI tests
+        run: >-
+          make test CXXFLAGS="-std=c++20 -O1 -g -Wall -Wextra -Wpedantic
+          -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer"
+      - name: Reject sanitizer reports even from expected-failure CLI tests
+        if: always()
+        shell: bash
+        run: |
+          shopt -s nullglob
+          reports=("$RUNNER_TEMP"/charmsharp-asan.* "$RUNNER_TEMP"/charmsharp-ubsan.*)
+          if (( ${#reports[@]} )); then
+            cat "${reports[@]}"
+            exit 1
+          fi
 
   byte-equivalence:
     runs-on: ubuntu-24.04
@@ -176,3 +208,4 @@ jobs:
           make -C current
       - name: Compare generated .ci and .cpp byte for byte
         run: bash current/tests/output_equivalence.sh "$GITHUB_WORKSPACE/current" "$GITHUB_WORKSPACE/baseline"
+

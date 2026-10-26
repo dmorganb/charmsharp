@@ -1,6 +1,7 @@
 #include "charmsharp/translator.hpp"
 
 #include <cerrno>
+#include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -134,4 +135,5 @@ int main(int argc, char** argv) {
     }
     return 0;
 }
+
 

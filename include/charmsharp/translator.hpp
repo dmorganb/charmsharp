@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -20,10 +21,12 @@ private:
     std::size_t offset_;
 };
 
-// Phase 1: a single top-level `chare`, simple entry methods, no SDAG.
+// Translate the supported Charm# declaration and SDAG subset to Charm++
+// interface and C++ sources. Invalid input reports a source-offset Diagnostic.
 [[nodiscard]] Generated translate(std::string_view source,
                                   std::string_view module_name);
 [[nodiscard]] std::string format_diagnostic(std::string_view source,
                                             const Diagnostic& error);
 
 } // namespace charmsharp
+
