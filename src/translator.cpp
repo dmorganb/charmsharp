@@ -1,6 +1,7 @@
 #include "charmsharp/translator.hpp"
 #include "lexer.hpp"
 #include "sdag.hpp"
+#include "semantic.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -39,6 +40,11 @@ struct Edit {
     std::string replacement;
 };
 
+struct ParsedTranslation {
+    Generated generated;
+    detail::SemanticModel semantic;
+};
+
 struct Chare {
     struct Method {
         std::string name;
@@ -51,6 +57,7 @@ struct Chare {
         std::string name;
         std::string signature;
         std::size_t token;
+        detail::SourceRange parameters;
     };
     std::string kind;
     std::string name;
@@ -78,9 +85,11 @@ bool valid_identifier(std::string_view name) {
 class Parser {
 public:
     Parser(std::string_view source, std::string_view module)
-        : source_(source), module_(module), tokens_(detail::tokenize(source)) {}
+        : source_(source), module_(module), tokens_(detail::tokenize(source)) {
+        semantic_.module_name = module_;
+    }
 
-    Generated run() {
+    ParsedTranslation run() {
         collect_type_names();
         std::size_t depth = 0;
         int conditional_depth = 0;
@@ -166,7 +175,8 @@ public:
             ci += "    };\n";
         }
         ci += "};\n";
-        return {std::move(ci), std::move(cpp)};
+        semantic_.is_mainmodule = has_mainchare;
+        return {{std::move(ci), std::move(cpp)}, std::move(semantic_)};
     }
 
 private:
@@ -174,6 +184,7 @@ private:
     std::string module_;
     std::vector<Token> tokens_;
     std::vector<Edit> edits_;
+    detail::SemanticModel semantic_;
     std::vector<Chare> chares_;
     std::vector<std::pair<std::string, std::string>> array_entry_methods_;
     std::vector<std::string> messages_;
@@ -329,6 +340,7 @@ private:
                                                   tokens_[name].end - tokens_[name].begin));
         if (name_used(variable)) fail(name, "duplicate Charm# type or readonly name");
         auto end = name + 1;
+        std::optional<std::string> array_bound;
         if (is(end, "[")) {
             const auto bound = end + 1;
             if (bound >= tokens_.size() || tokens_[bound].kind != Kind::Number ||
@@ -339,6 +351,7 @@ private:
             if (value.empty() || value[0] == '0' ||
                 !std::all_of(value.begin(), value.end(), [](char ch) { return ch >= '0' && ch <= '9'; }))
                 fail(bound, "readonly array bound must be a positive decimal integer");
+            array_bound = std::string(value);
             end = bound + 2;
         }
         if (!is(end, ";"))
@@ -346,6 +359,12 @@ private:
         readonly_.emplace_back(trim(source_.substr(tokens_[type].begin,
                                                    tokens_[end].begin - tokens_[type].begin)));
         readonly_names_.push_back(variable);
+        detail::ReadonlyDeclaration declaration;
+        declaration.type_name = token_text(type);
+        declaration.name = variable;
+        declaration.array_bound = std::move(array_bound);
+        declaration.source = {tokens_[keyword].begin, tokens_[end].end};
+        semantic_.readonly_variables.push_back(std::move(declaration));
         edits_.push_back({tokens_[keyword].begin, tokens_[type].begin, ""});
         return end + 1;
     }
@@ -378,6 +397,8 @@ private:
                           " : public CMessage_" + message_name +
                           (bases.cpp.empty() ? " " : ", " + bases.cpp + " ")});
         messages_.push_back(message_name);
+        semantic_.messages.push_back({message_name, bases.cpp,
+                                      {tokens_[keyword].begin, tokens_[close + 1].end}});
         return close + 2;
     }
 
@@ -424,6 +445,19 @@ private:
                           " : public CBase_" + chare_name +
                           (bases.cpp.empty() ? " " : ", " + bases.cpp + " ")});
         chares_.push_back({kind, chare_name, bases.parallel, {}, {}, {}, {}, false});
+        detail::ParallelDeclaration semantic_chare;
+        semantic_chare.kind = is(keyword, "array") ? detail::ParallelKind::Array :
+                              is(keyword, "mainchare") ? detail::ParallelKind::Mainchare :
+                              is(keyword, "group") ? detail::ParallelKind::Group :
+                              is(keyword, "nodegroup") ? detail::ParallelKind::Nodegroup :
+                              detail::ParallelKind::Chare;
+        semantic_chare.name = chare_name;
+        if (semantic_chare.kind == detail::ParallelKind::Array)
+            semantic_chare.array_dimension = kind.substr(7, kind.size() - 9);
+        semantic_chare.parallel_base = bases.parallel;
+        semantic_chare.ordinary_bases = bases.cpp;
+        semantic_chare.source = {tokens_[keyword].begin, tokens_[close + 1].end};
+        semantic_.parallel_types.push_back(std::move(semantic_chare));
         parse_members(brace + 1, close, chares_.back());
         auto& chare = chares_.back();
         std::vector<Chare::Receive> registered_receives;
@@ -442,12 +476,28 @@ private:
                                          });
             if (existing == chare.methods.end()) {
                 chare.entries.push_back(receive.signature);
+                detail::EntryDeclaration inferred;
+                inferred.name = receive.name;
+                inferred.return_type = "void";
+                inferred.parameter_list = std::string(source_.substr(
+                    receive.parameters.begin, receive.parameters.end - receive.parameters.begin));
+                inferred.signature = receive.parameters;
+                inferred.source = receive.parameters;
+                inferred.is_receive = true;
+                inferred.is_implicit = true;
+                semantic_.parallel_types.back().entries.push_back(std::move(inferred));
             } else {
                 if (existing->signature != receive.signature)
                     fail(receive.token, "incompatible explicit SDAG receive entry declaration");
                 if (existing->definition)
                     fail(receive.token, "SDAG receive entry cannot have a C++ implementation");
                 // The SDAG macro supplies the C++ receive method.
+                auto& semantic_entries = semantic_.parallel_types.back().entries;
+                auto declared = std::find_if(semantic_entries.begin(), semantic_entries.end(),
+                    [&](const detail::EntryDeclaration& entry) {
+                        return entry.name == receive.name;
+                    });
+                if (declared != semantic_entries.end()) declared->is_receive = true;
                 edits_.push_back({existing->begin, existing->end, ""});
             }
         }
@@ -665,7 +715,8 @@ private:
             const auto offset = tokens_[receive_brace].begin - (first_byte + node.begin);
             lowered.insert(offset, "serial ");
         }
-        chare.receives.push_back({receive_name, receive_signature, receive - 1});
+        chare.receives.push_back({receive_name, receive_signature, receive - 1,
+                                  {tokens_[receive].begin, tokens_[receive_close].end}});
         return lowered;
     }
 
@@ -772,7 +823,20 @@ private:
         if (std::find(chare.entries.begin(), chare.entries.end(), signature) != chare.entries.end())
             fail(begin, "duplicate entry method signature");
 
+        detail::EntryDeclaration semantic_entry;
+        semantic_entry.name = name;
+        if (name != chare.name)
+            semantic_entry.return_type = std::string(trim(source_.substr(
+                tokens_[begin].begin, tokens_[open - 1].begin - tokens_[begin].begin)));
+        semantic_entry.parameter_list = std::string(source_.substr(
+            tokens_[open].begin, tokens_[close].end - tokens_[open].begin));
+        semantic_entry.attributes = attributes;
+        semantic_entry.signature = {tokens_[entry_start].begin, tokens_[close].end};
+        semantic_entry.is_definition = !is(body, ";");
+
         if (is(body, ";")) {
+            semantic_entry.source = {tokens_[entry_start].begin, tokens_[body].end};
+            semantic_.parallel_types.back().entries.push_back(std::move(semantic_entry));
             chare.entries.emplace_back(signature);
             chare.methods.push_back({name, signature, tokens_[begin].begin, tokens_[body].end, false});
             return body + 1;
@@ -802,6 +866,9 @@ private:
             const auto ci_body = std::string("{\n") +
                 lower_sdag_nodes(text, first_byte, analyzed.statements, chare) + "\n}";
             chare.sdag_entries.push_back(signature + " " + ci_body);
+            semantic_entry.is_sdag = true;
+            semantic_entry.sdag_body = std::move(analyzed);
+            semantic_entry.sdag_body_start = first_byte;
             chare.has_sdag = true;
             edits_.push_back({tokens_[begin].begin, tokens_[body_end].end, ""});
         } else {
@@ -809,6 +876,8 @@ private:
             chare.methods.push_back({name, signature, tokens_[begin].begin,
                                      tokens_[body_end].end, true});
         }
+        semantic_entry.source = {tokens_[entry_start].begin, tokens_[body_end].end};
+        semantic_.parallel_types.back().entries.push_back(std::move(semantic_entry));
         return is(body_end + 1, ";") ? body_end + 2 : body_end + 1;
     }
 };
@@ -818,7 +887,15 @@ private:
 Generated translate(std::string_view source, std::string_view module_name) {
     if (!valid_identifier(module_name))
         throw Diagnostic("module name must be a C++ identifier", 0);
-    return Parser(source, module_name).run();
+    return Parser(source, module_name).run().generated;
 }
+
+namespace detail {
+SemanticModel analyze(std::string_view source, std::string_view module_name) {
+    if (!valid_identifier(module_name))
+        throw Diagnostic("module name must be a C++ identifier", 0);
+    return Parser(source, module_name).run().semantic;
+}
+} // namespace detail
 
 } // namespace charmsharp

@@ -1,5 +1,6 @@
 #include "charmsharp/translator.hpp"
 #include "../src/sdag.hpp"
+#include "../src/semantic.hpp"
 
 #include <cstdlib>
 #include <functional>
@@ -440,6 +441,100 @@ chare Child : public App, public Parent { entry: Child() {} };
 }
 
 
+void semantic_model_is_populated_without_changing_translation() {
+    using charmsharp::detail::ParallelKind;
+    constexpr std::string_view source = R"SRC(readonly int total[4];
+message Result { int value; };
+mainchare Main {
+entry:
+    Main(CkArgMsg* message) { delete message; }
+};
+array [2D] chare Worker {
+    int state = 0;
+entry:
+    [[charm::threaded]] void step(int n);
+    void start() {
+        when recv(int x) { state = x; }
+    }
+};)SRC";
+
+    const auto model = charmsharp::detail::analyze(source, "SemanticTest");
+    equal(model.module_name, "SemanticTest");
+    ++checks;
+    if (!model.is_mainmodule || model.parallel_types.size() != 2 ||
+        model.messages.size() != 1 || model.readonly_variables.size() != 1)
+        throw std::runtime_error("semantic model lost top-level declarations");
+
+    const auto& readonly = model.readonly_variables.front();
+    equal(readonly.type_name, "int");
+    equal(readonly.name, "total");
+    ++checks;
+    if (!readonly.array_bound || *readonly.array_bound != "4" ||
+        source.substr(readonly.source.begin, 8) != "readonly")
+        throw std::runtime_error("readonly metadata or source range missing");
+
+    const auto& message = model.messages.front();
+    equal(message.name, "Result");
+    ++checks;
+    if (source.substr(message.source.begin, 7) != "message")
+        throw std::runtime_error("message source range missing");
+
+    const auto& main = model.parallel_types.front();
+    ++checks;
+    if (main.kind != ParallelKind::Mainchare || main.entries.size() != 1 ||
+        main.entries.front().name != "Main" ||
+        !main.entries.front().return_type.empty())
+        throw std::runtime_error("mainchare constructor metadata missing");
+
+    const auto& worker = model.parallel_types.back();
+    equal(worker.name, "Worker");
+    equal(worker.array_dimension, "2");
+    ++checks;
+    if (worker.kind != ParallelKind::Array || worker.entries.size() != 3 ||
+        source.substr(worker.source.begin, 5) != "array")
+        throw std::runtime_error("array chare metadata missing");
+
+    const auto& step = worker.entries.at(0);
+    equal(step.name, "step");
+    equal(step.return_type, "void");
+    equal(step.parameter_list, "(int n)");
+    ++checks;
+    if (step.is_definition || step.is_sdag || step.attributes.size() != 1 ||
+        step.attributes.front() != "threaded")
+        throw std::runtime_error("annotated entry metadata missing");
+
+    const auto& start = worker.entries.at(1);
+    ++checks;
+    if (!start.is_definition || !start.is_sdag || !start.sdag_body ||
+        !start.sdag_body->has_sdag || start.sdag_body->statements.empty() ||
+        source.substr(start.sdag_body_start, 1) != "{")
+        throw std::runtime_error("SDAG structural representation missing");
+
+    const auto& recv = worker.entries.at(2);
+    equal(recv.name, "recv");
+    equal(recv.parameter_list, "(int x)");
+    ++checks;
+    if (!recv.is_receive || !recv.is_implicit)
+        throw std::runtime_error("implicit SDAG receive metadata missing");
+
+    // The public translate() API still uses the legacy emitters in PR1.
+    const auto output = charmsharp::translate(source, "SemanticTest");
+    contains(output.interface_source, "entry void recv(int x);");
+    contains(output.cpp_source, "Worker_SDAG_CODE");
+
+    const auto explicit_recv = charmsharp::detail::analyze(R"SRC(chare Worker {
+entry:
+    void recv(int x);
+    void start() { when recv(int x) { CkExit(); } }
+};)SRC", "ExplicitReceive");
+    ++checks;
+    if (explicit_recv.parallel_types.size() != 1 ||
+        explicit_recv.parallel_types.front().entries.size() != 2 ||
+        !explicit_recv.parallel_types.front().entries.front().is_receive ||
+        explicit_recv.parallel_types.front().entries.front().is_implicit)
+        throw std::runtime_error("explicit SDAG receive was duplicated");
+}
+
 void sdag_structure() {
     using charmsharp::detail::SdagKind;
     constexpr std::string_view source = R"SRC({
@@ -760,6 +855,7 @@ int main() {
     ordinary_inheritance();
     message_inheritance();
     parallel_inheritance();
+    semantic_model_is_populated_without_changing_translation();
     sdag_structure();
     basic_sdag_when_lowering();
     implicit_sdag_serial_runs();
