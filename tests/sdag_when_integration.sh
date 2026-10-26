@@ -11,7 +11,7 @@ command -v charmc >/dev/null 2>&1 || {
 repo=$(pwd)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
-mkdir -p "$tmp/reference" "$tmp/generated"
+mkdir -p "$tmp/reference" "$tmp/generated" "$tmp/normalized"
 
 cp tests/fixtures/sdag_when/when.ci tests/fixtures/sdag_when/when.C "$tmp/reference/"
 (
@@ -29,13 +29,23 @@ grep -Fq 'Worker_SDAG_CODE' "$tmp/generated/sdagwait.cpp"
     charmc sdagwait.ci
     charmc sdagwait.cpp -o when
 )
+# Explicit metadata may differ in whitespace, comments and parameter names.
+sed '/    void start()/i\
+    void deliver( int /* declaration */ payload );' examples/SdagWhen.csh > "$tmp/normalized.csh"
+"$repo/$tool" --module sdagwait --out-dir "$tmp/normalized" "$tmp/normalized.csh"
+(
+    cd "$tmp/normalized"
+    charmc sdagwait.ci
+    charmc sdagwait.cpp -o when
+)
+for variant in generated normalized; do
 for arrival in early late; do
     (
         cd "$tmp/reference"
         timeout 45 ./when "$arrival" +p2 > "$tmp/reference.out"
     )
     (
-        cd "$tmp/generated"
+        cd "$tmp/$variant"
         timeout 45 ./when "$arrival" +p2 > "$tmp/generated.out"
     )
     grep '^SDAG result:' "$tmp/reference.out" > "$tmp/reference.result"
@@ -45,5 +55,7 @@ for arrival in early late; do
     grep -Fxq 'SDAG result: 42' "$tmp/reference.result"
     diff -u "$tmp/reference.result" "$tmp/generated.result"
 done
+done
 
 echo 'SDAG when: handwritten and transpiled Charm++ agree for early and late arrival.'
+

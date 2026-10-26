@@ -39,6 +39,8 @@ struct EntryDeclaration {
     std::string name;
     std::string return_type;      // Original spelling; empty for constructors.
     std::string parameter_list;   // Original spelling, including parentheses.
+    // Token identity for matching; simple parameter names are excluded.
+    std::vector<std::string> parameter_key;
     std::vector<std::string> attributes; // Normalized Charm++ attribute names.
     std::vector<SourceRange> attribute_ranges; // Original [[charm::...]] spans.
     SourceRange signature;
@@ -99,3 +101,4 @@ struct SemanticModel {
                                     std::string_view module_name);
 
 } // namespace charmsharp::detail
+
