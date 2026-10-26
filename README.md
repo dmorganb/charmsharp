@@ -8,9 +8,12 @@ linking, and execution to the existing Charm++ toolchain.
 
 Its goal is to reduce the amount of handwritten and duplicated source code
 needed for Charm++ programs, while preserving ordinary C++ wherever possible.
-Charm# is a **research prototype** for a thesis, not a replacement for Charm++
-or a complete C++ parser. Its implementation uses a handwritten tokenizer,
-a small structural parser, and source-range rewriting.
+Charm# is a **research prototype** for a thesis, not an alternative runtime
+or a complete C++ parser. Its longer-term direction is to modernize the
+Charm++ language frontend while retaining the existing Charm++ compiler and
+runtime infrastructure. It currently uses a handwritten tokenizer, a small
+structural parser, a backend-independent semantic model, and source-range
+preserving emitters.
 
 ## Quick start
 
@@ -69,6 +72,63 @@ In the emitted C++, `chare` becomes a class inheriting from the generated
 `CBase_Counter`, and `entry:` becomes public access. Ordinary C++ method
 bodies remain in C++. The generated C++ includes the conventional
 `CounterModule.decl.h` and `CounterModule.def.h` files created by Charm++.
+
+## Compiler architecture
+
+Charm# separates parsing and semantic analysis from output generation.
+Its **internal** `SemanticModel` captures validated parallel declarations,
+entry metadata, messages, readonly variables, marshalled parameters, and
+analyzed SDAG, alongside byte ranges into the original `.csh` source.
+Ordinary C++ stays opaque rather than being reconstructed from a partial C++
+abstract syntax tree.
+
+```text
+Charm# source (.csh)
+        |
+        v
+Tokenizer + structural/SDAG parsing and semantic analysis
+        |
+        v
+    SemanticModel
+        |
+        +--------------------+
+        |                    |
+        v                    v
+    CIEmitter             CppEmitter
+        |                    |
+        v                    v
+  Charm++ .ci          Generated .cpp
+        |                    |
+        +---------+----------+
+                  |
+                  v
+      Existing Charm++ toolchain
+      (charmxi, C++ compiler, runtime)
+```
+
+- `src/translator.cpp` recognizes Charm# extensions and validates the
+  supported subset before invoking either backend.
+- `src/semantic.hpp` defines the model and source spans used by both emitters.
+- `src/ci_emitter.cpp` renders Charm++ interface declarations and SDAG code
+  without repeating frontend semantic analysis.
+- `src/cpp_emitter.cpp` applies source-range edits for ordinary C++ classes,
+  entry metadata, marshalled parameters, SDAG glue, and generated header
+  inclusion. It does not reparse Charm# syntax.
+- `charmsharp::translate()` remains the public translation API. The model and
+  individual emitters are internal implementation details, not stable public
+  interfaces.
+
+This split was introduced in [PR #32](https://github.com/dmorganb/charmsharp/pull/32),
+[PR #33](https://github.com/dmorganb/charmsharp/pull/33), and
+[PR #34](https://github.com/dmorganb/charmsharp/pull/34).
+The refactors were checked against the preceding compiler version using
+**byte-for-byte comparisons of both output files for 19 committed Charm#
+programs**, in addition to unit and Charm++ v8.0.0 integration tests.
+
+**Possible future integration:** a new backend might build an XLAT-I
+representation through Charm++'s XI-Builder facilities rather than emitting
+textual `.ci` first. This has **not** been implemented or validated; it would
+not by itself eliminate Charm++'s generated C++ bindings or change its runtime.
 
 ## Implemented language features
 
@@ -148,31 +208,50 @@ than speculative translations.
 
 ## Thesis measurement work
 
-The repository also contains an **early-stage**, separate Halstead metrics
-instrument under `tools/charm-metrics/`. Its token classifier and draft
-[classification policy](docs/halstead-classification-policy.md) exist, but
-full program-level metrics, reporting and benchmark comparisons are **not yet
-complete**. The planned measurement counts developer-authored `.ci` + C++
-for Charm++ and the corresponding `.csh` for Charm#, never generated files.
-See the [roadmap](docs/roadmap.md).
+The separate [Halstead analyzer](tools/charm-metrics/README.md) is implemented
+and tests source-level lexical complexity across the four paired benchmarks.
+It aggregates operator and operand frequencies across **developer-authored**
+files before calculating Halstead vocabulary, length, volume, difficulty,
+and effort. It excludes generated `.ci`, transpiled C++, and Charm++-generated
+headers. Its [classification policy v0.2](docs/halstead-classification-policy.md)
+documents token handling and two punctuation policies.
+
+Build, test, and compare the benchmark sources from the repository root:
+
+```sh
+make -C tools/charm-metrics test
+make -C tools/charm-metrics charm-metrics
+tools/charm-metrics/charm-metrics benchmark --root benchmarks --format text
+```
+
+See the [benchmark results](docs/halstead-benchmark-results.md) for
+the observed volume, difficulty, and effort differences, reproducible CI
+artifacts, and the structural-punctuation sensitivity analysis. These
+results are **descriptive measurements of four paired programs**, not evidence
+of statistically significant improvements in human comprehension time or
+observed defect rates. The thesis's programmer-experiment and statistical
+evaluation are separate work.
 
 ## Repository layout
 
 ```text
-src/                    Charm# tokenizer, SDAG parser, translator, CLI
+src/                    Tokenizer, parsers, semantic model, .ci/C++ emitters, CLI
 include/charmsharp/     Public translation API
 examples/               Small runnable and compile-only Charm# programs
 tests/                  C++ unit tests, CLI tests, Charm++ integration fixtures
 benchmarks/             Four upstream Charm++/Charm# program pairs
-tools/charm-metrics/     Separate experimental Halstead token classifier
+tools/charm-metrics/     Standalone Halstead analyzer and benchmark CLI
 docs/                   Grammar, coverage audit, roadmap, measurement policy
-.github/workflows/      C++20 tests and cached Charm++ integration
+.github/workflows/      Unit tests, output-equivalence checks, Charm++ integration, metrics
 ```
 
 ## Design philosophy
 
 Charm# is an **extension grammar** over C++, not a reimplementation of C++20.
-The translator recognizes only the additional Charm# structure, retains
-source byte ranges for ordinary C++, emits conventional Charm++ artifacts,
-and relies on the existing toolchain. This makes each increment independently
-testable against equivalent handwritten Charm++ code.
+The frontend recognizes only the additional Charm# structure, analyzes its
+semantics, and retains original C++ byte ranges in a common model. Independent
+emitters produce conventional Charm++ artifacts while preserving ordinary
+C++ source. The existing Charm++ toolchain still performs interface code
+generation, compilation, and execution. This separation keeps the language
+frontend small, makes each backend independently testable, and allows new
+backend experiments without redesigning the parser.
