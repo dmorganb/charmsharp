@@ -19,6 +19,7 @@ build/tests: tests/tests.cpp $(LIB_SOURCES) $(HEADERS)
 test: build/tests build/charmsharp
 	./build/tests
 	sh tests/cli_smoke.sh ./build/charmsharp examples/Counter.csh
+	sh tests/build_cli.sh ./build/charmsharp examples/Hello.csh
 
 charm-check: build/charmsharp
 	sh tests/charm_smoke.sh ./build/charmsharp examples/Counter.csh
@@ -79,3 +80,4 @@ charm-sdag-extended: build/charmsharp
 
 clean:
 	rm -f build/charmsharp build/tests
+
