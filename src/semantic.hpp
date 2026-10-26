@@ -19,6 +19,14 @@ struct SourceRange {
 
 enum class ParallelKind { Chare, Mainchare, Array, Group, Nodegroup };
 
+// Source-level metadata for a validated marshalled array parameter.
+// The C++ backend replaces the array suffix with a pointer declarator;
+// the CI backend leaves the original source spelling intact.
+struct MarshalledArray {
+    SourceRange name;
+    SourceRange suffix;
+};
+
 // Location of a when statement and its receive-body brace. The emitter only
 // needs this layout to insert implicit serial, not to reparse the signature.
 struct SdagReceiveLayout {
@@ -32,6 +40,7 @@ struct EntryDeclaration {
     std::string return_type;      // Original spelling; empty for constructors.
     std::string parameter_list;   // Original spelling, including parentheses.
     std::vector<std::string> attributes; // Normalized Charm++ attribute names.
+    std::vector<SourceRange> attribute_ranges; // Original [[charm::...]] spans.
     SourceRange signature;
     SourceRange method_signature; // Excludes Charm# attributes.
     SourceRange source;
@@ -52,6 +61,10 @@ struct ParallelDeclaration {
     std::string parallel_base;
     std::string ordinary_bases;   // Preserved C++ base-specifier text.
     SourceRange source;
+    SourceRange name_source;
+    std::size_t opening_brace = 0;
+    std::size_t closing_brace = 0;
+    std::vector<SourceRange> entry_labels;
     std::vector<EntryDeclaration> entries;
 };
 
@@ -59,6 +72,8 @@ struct MessageDeclaration {
     std::string name;
     std::string ordinary_bases;
     SourceRange source;
+    SourceRange name_source;
+    std::size_t opening_brace = 0;
 };
 
 struct ReadonlyDeclaration {
@@ -75,10 +90,11 @@ struct SemanticModel {
     std::vector<ParallelDeclaration> parallel_types;
     std::vector<MessageDeclaration> messages;
     std::vector<ReadonlyDeclaration> readonly_variables;
+    std::vector<MarshalledArray> marshalled_arrays;
 };
 
 // Internal analysis entry point for model tests and future backends. The
-// translator still applies legacy C++ edits; the .ci backend uses this model.
+// C++ and .ci backends independently consume this model and source spans.
 [[nodiscard]] SemanticModel analyze(std::string_view source,
                                     std::string_view module_name);
 

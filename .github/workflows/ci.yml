@@ -28,6 +28,18 @@ jobs:
       - name: Compare PR1 and PR2 generated output byte-for-byte
         run: bash tests/compare_pr1_pr2_outputs.sh "$RUNNER_TEMP/charmsharp-pr1"
 
+  pr3-byte-equivalence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Check out merged PR2 compiler
+        run: git worktree add "$RUNNER_TEMP/charmsharp-pr2" 9d7541ff701a8272d8225bda16f31e855b51eebd
+      - name: Compare PR2 and PR3 generated output byte-for-byte
+        run: bash tests/compare_pr1_pr2_outputs.sh "$RUNNER_TEMP/charmsharp-pr2"
+
   charmpp-integration:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
