@@ -21,6 +21,19 @@ bool starts_with_at(std::string_view source, std::size_t at, std::string_view te
     return source.substr(at, text.size()) == text;
 }
 
+// Keep physical byte offsets while treating continued comments/directives as
+// one logical line. Both Unix and Windows source line endings are accepted.
+std::size_t logical_line_end(std::string_view source, std::size_t start) {
+    auto end = source.find('\n', start);
+    while (end != std::string_view::npos) {
+        auto before = end;
+        if (before > start && source[before - 1] == '\r') --before;
+        if (before == start || source[before - 1] != '\\') return end;
+        end = source.find('\n', end + 1);
+    }
+    return source.size();
+}
+
 std::size_t quoted_end(std::string_view source, std::size_t start, char quote) {
     for (std::size_t i = start + 1; i < source.size(); ++i) {
         if (source[i] == '\\') {
@@ -76,8 +89,7 @@ std::vector<Token> tokenize(std::string_view source) {
             continue;
         }
         if (starts_with_at(source, i, "//")) {
-            const auto end = source.find('\n', i + 2);
-            i = end == std::string_view::npos ? source.size() : end;
+            i = logical_line_end(source, i);
             continue;
         }
         if (starts_with_at(source, i, "/*")) {
@@ -91,17 +103,7 @@ std::vector<Token> tokenize(std::string_view source) {
             continue;
         }
         if (ch == '#' && line_start) {
-            ++i;
-            while (i < source.size()) {
-                if (source[i] == '\\' && i + 1 < source.size() &&
-                    source[i + 1] == '\n') {
-                    i += 2;
-                } else if (source[i] == '\n') {
-                    break;
-                } else {
-                    ++i;
-                }
-            }
+            i = logical_line_end(source, i);
             tokens.push_back({Kind::Directive, begin, i});
             line_start = false;
             continue;
@@ -128,7 +130,12 @@ std::vector<Token> tokenize(std::string_view source) {
         } else if (std::isdigit(static_cast<unsigned char>(ch))) {
             ++i;
             while (i < source.size() &&
-                   (is_identifier_continue(source[i]) || source[i] == '.')) ++i;
+                   (is_identifier_continue(source[i]) || source[i] == '.' ||
+                    (source[i] == '\'' && i + 1 < source.size() &&
+                     is_identifier_continue(source[i + 1])) ||
+                    ((source[i] == '+' || source[i] == '-') &&
+                     (source[i - 1] == 'e' || source[i - 1] == 'E' ||
+                      source[i - 1] == 'p' || source[i - 1] == 'P')))) ++i;
             tokens.push_back({Kind::Number, begin, i});
         } else {
             ++i;
@@ -139,3 +146,4 @@ std::vector<Token> tokenize(std::string_view source) {
 }
 
 } // namespace charmsharp::detail
+

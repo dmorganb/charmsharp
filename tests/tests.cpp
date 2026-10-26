@@ -1,5 +1,6 @@
 #include "charmsharp/translator.hpp"
 #include "../src/sdag.hpp"
+#include "../src/lexer.hpp"
 #include "../src/semantic.hpp"
 #include "../src/ci_emitter.hpp"
 #include "../src/cpp_emitter.hpp"
@@ -101,6 +102,44 @@ private:
     ++checks;
     if (output.interface_source.find("local") != std::string::npos)
         throw std::runtime_error("non-entry method leaked into interface");
+}
+
+void preserves_numeric_literals_and_logical_lines() {
+    for (const auto literal : {"1'000", "0xAB'CD", "0b1010'0011", "1.23'45e+6", "0x1.a'bp-2"}) {
+        const auto tokens = charmsharp::detail::tokenize(literal);
+        ++checks;
+        if (tokens.size() != 1 || tokens.front().kind != charmsharp::detail::Kind::Number ||
+            tokens.front().begin != 0 || tokens.front().end != std::string_view(literal).size())
+            throw std::runtime_error("numeric literal was split");
+        const auto source = std::string("chare A { entry: void f() { auto n = ") + literal + "; } };";
+        contains(charmsharp::translate(source, "M").cpp_source,
+                 std::string("auto n = ") + literal + ";");
+    }
+    contains(charmsharp::translate("chare A { entry: void f() { char c = 'x'; } };", "M").cpp_source,
+             "char c = 'x';");
+    for (const auto newline : {"\n", "\r\n"}) {
+        const auto prefix = std::string("// continued \\") + newline +
+            "chare Hidden {}; \\" + newline + "} still commented" + newline +
+            "#define BRACES \\" + newline + "{ chare Macro {}; \\" + newline + "}" + newline;
+        const auto source = prefix + "chare Visible {};";
+        const auto output = charmsharp::translate(source, "M");
+        equal(output.interface_source, "module M {\n    chare Visible {\n    };\n};\n");
+        contains(output.cpp_source, prefix);
+        const auto tokens = charmsharp::detail::tokenize(source);
+        ++checks;
+        if (tokens.front().kind != charmsharp::detail::Kind::Directive ||
+            tokens.at(1).begin != prefix.size())
+            throw std::runtime_error("logical line changed physical token offsets");
+        try {
+            (void)charmsharp::translate(prefix + "chare {", "M");
+            throw std::runtime_error("expected invalid declaration diagnostic");
+        } catch (const charmsharp::Diagnostic& error) {
+            contains(charmsharp::format_diagnostic(prefix + "chare {", error), "7:1:");
+        }
+    }
+    const auto eof = charmsharp::detail::tokenize("// continued \\\nchare Hidden {};");
+    ++checks;
+    if (!eof.empty()) throw std::runtime_error("continued comment leaked at EOF");
 }
 
 void multiple_sections_and_definitions() {
@@ -884,6 +923,7 @@ void diagnostics() {
 int main() {
     golden_counter();
     preserves_ordinary_cpp_and_literal_braces();
+    preserves_numeric_literals_and_logical_lines();
     multiple_sections_and_definitions();
     multiple_chares_and_mainchare();
     groups_and_arrays();
