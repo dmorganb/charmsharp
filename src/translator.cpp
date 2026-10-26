@@ -525,6 +525,8 @@ private:
                 bool simple = true;
                 bool has_type = false;
                 for (auto t = first; t + 1 < declarator_end; ++t) {
+                    if (is(t, "struct") || is(t, "class") || is(t, "enum") || is(t, "typename"))
+                        simple = false;
                     if (tokens_[t].kind != Kind::Identifier && !is(t, ":") &&
                         !is(t, "*") && !is(t, "&")) simple = false;
                     if (tokens_[t].kind == Kind::Identifier &&

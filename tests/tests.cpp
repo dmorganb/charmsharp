@@ -778,7 +778,8 @@ entry:
         throw std::runtime_error("renamed array bound did not match");
     contains(charmsharp::translate(
         "chare A { entry: void f(const int value); void f(int* value); "
-        "void f(unsigned long); void f(const Widget); };", "M").interface_source,
+        "void f(unsigned long); void f(struct First); void f(struct Second); "
+        "void f(const Widget); };", "M").interface_source,
         "entry void f(const Widget);");
     rejects("chare A { entry: void f(int x); void f( int /*comment*/ y ); };",
             "duplicate entry method signature");
