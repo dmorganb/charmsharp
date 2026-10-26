@@ -2,6 +2,7 @@
 #include "lexer.hpp"
 #include "sdag.hpp"
 #include "semantic.hpp"
+#include "ci_emitter.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -63,7 +64,6 @@ struct Chare {
     std::string name;
     std::string parallel_base;
     std::vector<std::string> entries;
-    std::vector<std::string> sdag_entries;
     std::vector<Method> methods;
     std::vector<Receive> receives;
     bool has_sdag = false;
@@ -89,7 +89,7 @@ public:
         semantic_.module_name = module_;
     }
 
-    ParsedTranslation run() {
+    ParsedTranslation run(bool emit_output = true) {
         collect_type_names();
         std::size_t depth = 0;
         int conditional_depth = 0;
@@ -144,6 +144,12 @@ public:
         if (chares_.empty() && messages_.empty() && readonly_.empty())
             throw Diagnostic("expected a top-level Charm# declaration", 0);
 
+        semantic_.is_mainmodule = std::any_of(semantic_.parallel_types.begin(),
+            semantic_.parallel_types.end(), [](const detail::ParallelDeclaration& chare) {
+                return chare.kind == detail::ParallelKind::Mainchare;
+            });
+        if (!emit_output) return {{}, std::move(semantic_)};
+
         std::string cpp(source_);
         // Applying backwards keeps all source offsets stable.
         std::stable_sort(edits_.begin(), edits_.end(), [](const Edit& a, const Edit& b) {
@@ -156,26 +162,7 @@ public:
         if (cpp.empty() || cpp.back() != '\n') cpp += '\n';
         cpp += "#include \"" + module_ + ".def.h\"\n";
 
-        const bool has_mainchare = std::any_of(chares_.begin(), chares_.end(), [](const Chare& chare) {
-            return chare.kind == "mainchare";
-        });
-        std::string ci = std::string(has_mainchare ? "mainmodule " : "module ") + module_ + " {\n";
-        for (const auto& message : messages_)
-            ci += "    message " + message + ";\n";
-        for (const auto& declaration : readonly_)
-            ci += "    readonly " + declaration + ";\n";
-        for (const auto& chare : chares_) {
-            ci += "    " + chare.kind + " " + chare.name;
-            if (!chare.parallel_base.empty()) ci += " : " + chare.parallel_base;
-            ci += " {\n";
-            for (const auto& signature : chare.entries)
-                ci += "        entry " + signature + ";\n";
-            for (const auto& definition : chare.sdag_entries)
-                ci += "        entry " + definition + ";\n";
-            ci += "    };\n";
-        }
-        ci += "};\n";
-        semantic_.is_mainmodule = has_mainchare;
+        auto ci = detail::emit_ci(source_, semantic_);
         return {{std::move(ci), std::move(cpp)}, std::move(semantic_)};
     }
 
@@ -363,6 +350,7 @@ private:
         declaration.type_name = token_text(type);
         declaration.name = variable;
         declaration.array_bound = std::move(array_bound);
+        declaration.declarator = {tokens_[type].begin, tokens_[end].begin};
         declaration.source = {tokens_[keyword].begin, tokens_[end].end};
         semantic_.readonly_variables.push_back(std::move(declaration));
         edits_.push_back({tokens_[keyword].begin, tokens_[type].begin, ""});
@@ -444,7 +432,7 @@ private:
         edits_.push_back({tokens_[name].end, tokens_[brace].begin,
                           " : public CBase_" + chare_name +
                           (bases.cpp.empty() ? " " : ", " + bases.cpp + " ")});
-        chares_.push_back({kind, chare_name, bases.parallel, {}, {}, {}, {}, false});
+        chares_.push_back({kind, chare_name, bases.parallel, {}, {}, {}, false});
         detail::ParallelDeclaration semantic_chare;
         semantic_chare.kind = is(keyword, "array") ? detail::ParallelKind::Array :
                               is(keyword, "mainchare") ? detail::ParallelKind::Mainchare :
@@ -578,11 +566,11 @@ private:
         return found;
     }
 
-    // Reassemble only SDAG control structure. Ordinary C++ expression text
-    // is copied directly from the original byte ranges.
-    std::string lower_sdag_nodes(std::string_view text, std::size_t first_byte,
-                                 const std::vector<detail::SdagNode>& nodes, Chare& chare) {
-        std::string result;
+    // Analyze SDAG before emission: validate suspension-sensitive constructs
+    // and register receives. The .ci emitter only renders validated nodes.
+    void analyze_sdag_nodes(std::string_view text, std::size_t first_byte,
+                            const std::vector<detail::SdagNode>& nodes, Chare& chare,
+                            detail::EntryDeclaration& entry) {
         for (std::size_t n = 0; n < nodes.size();) {
             const auto& node = nodes[n];
             if (node.kind == detail::SdagKind::Ordinary) {
@@ -613,27 +601,23 @@ private:
                 while (last + 1 < nodes.size() &&
                        nodes[last + 1].kind == detail::SdagKind::Ordinary)
                     ++last;
-                result += "serial {\n";
-                result += std::string(text.substr(node.begin, nodes[last].end - node.begin));
-                result += "\n}\n";
                 n = last + 1;
                 continue;
             }
-            result += lower_sdag_node(text, first_byte, node, chare);
-            result += "\n";
+            analyze_sdag_node(text, first_byte, node, chare, entry);
             ++n;
         }
-        return result;
     }
 
-    std::string lower_sdag_node(std::string_view text, std::size_t first_byte,
-                                const detail::SdagNode& node, Chare& chare) {
-        if (node.kind == detail::SdagKind::Ordinary)
-            return "serial { " + std::string(text.substr(node.begin, node.end - node.begin)) + " }";
-        if (node.kind == detail::SdagKind::Serial)
-            return std::string(text.substr(node.begin, node.end - node.begin));
+    void analyze_sdag_node(std::string_view text, std::size_t first_byte,
+                           const detail::SdagNode& node, Chare& chare,
+                           detail::EntryDeclaration& entry) {
+        if (node.kind == detail::SdagKind::Ordinary ||
+            node.kind == detail::SdagKind::Serial)
+            return;
         if (node.kind == detail::SdagKind::Block) {
-            return "{\n" + lower_sdag_nodes(text, first_byte, node.children, chare) + "\n}";
+            analyze_sdag_nodes(text, first_byte, node.children, chare, entry);
+            return;
         }
         if (node.kind == detail::SdagKind::If || node.kind == detail::SdagKind::For ||
             node.kind == detail::SdagKind::While || node.kind == detail::SdagKind::Forall ||
@@ -651,8 +635,6 @@ private:
                 }
             }
             if (node.kind == detail::SdagKind::Forall) {
-                // Charmxi expects an existing chare field, not a newly
-                // declared loop-local index inside the SDAG header.
                 auto token = std::size_t{0};
                 while (token < tokens_.size() &&
                        tokens_[token].begin < first_byte + node.begin)
@@ -662,15 +644,9 @@ private:
                      !is(token + 3, "]")))
                     fail(token + 2, "SDAG forall index must name a persistent chare field");
             }
-            std::string lowered;
-            auto cursor = node.begin;
-            for (const auto& child : node.children) {
-                lowered += std::string(text.substr(cursor, child.begin - cursor));
-                lowered += lower_sdag_node(text, first_byte, child, chare);
-                cursor = child.end;
-            }
-            lowered += std::string(text.substr(cursor, node.end - cursor));
-            return lowered;
+            for (const auto& child : node.children)
+                analyze_sdag_node(text, first_byte, child, chare, entry);
+            return;
         }
         if (node.kind != detail::SdagKind::When)
             throw Diagnostic("unsupported SDAG control statement",
@@ -710,14 +686,13 @@ private:
                 (is(i, "case") && is(i + 1, "{")))
                 fail(i, "nested SDAG awaits are deferred");
         }
-        std::string lowered(text.substr(node.begin, node.end - node.begin));
-        if (!explicit_serial) {
-            const auto offset = tokens_[receive_brace].begin - (first_byte + node.begin);
-            lowered.insert(offset, "serial ");
-        }
         chare.receives.push_back({receive_name, receive_signature, receive - 1,
                                   {tokens_[receive].begin, tokens_[receive_close].end}});
-        return lowered;
+        entry.sdag_receives.push_back({
+            {first_byte + node.begin, first_byte + node.end},
+            tokens_[receive_brace].begin,
+            explicit_serial
+        });
     }
 
     std::size_t parse_entry(std::size_t begin, std::size_t end, Chare& chare) {
@@ -832,6 +807,7 @@ private:
             tokens_[open].begin, tokens_[close].end - tokens_[open].begin));
         semantic_entry.attributes = attributes;
         semantic_entry.signature = {tokens_[entry_start].begin, tokens_[close].end};
+        semantic_entry.method_signature = {tokens_[begin].begin, tokens_[close].end};
         semantic_entry.is_definition = !is(body, ";");
 
         if (is(body, ";")) {
@@ -863,9 +839,8 @@ private:
             }
             if (!analyzed.has_sdag || name == chare.name || !attributes.empty())
                 fail(first_sdag, "SDAG requires an unannotated void entry method");
-            const auto ci_body = std::string("{\n") +
-                lower_sdag_nodes(text, first_byte, analyzed.statements, chare) + "\n}";
-            chare.sdag_entries.push_back(signature + " " + ci_body);
+            analyze_sdag_nodes(text, first_byte, analyzed.statements,
+                               chare, semantic_entry);
             semantic_entry.is_sdag = true;
             semantic_entry.sdag_body = std::move(analyzed);
             semantic_entry.sdag_body_start = first_byte;
@@ -894,7 +869,7 @@ namespace detail {
 SemanticModel analyze(std::string_view source, std::string_view module_name) {
     if (!valid_identifier(module_name))
         throw Diagnostic("module name must be a C++ identifier", 0);
-    return Parser(source, module_name).run().semantic;
+    return Parser(source, module_name).run(false).semantic;
 }
 } // namespace detail
 

@@ -1,6 +1,7 @@
 #include "charmsharp/translator.hpp"
 #include "../src/sdag.hpp"
 #include "../src/semantic.hpp"
+#include "../src/ci_emitter.hpp"
 
 #include <cstdlib>
 #include <functional>
@@ -519,6 +520,9 @@ entry:
 
     // The public translate() API still uses the legacy emitters in PR1.
     const auto output = charmsharp::translate(source, "SemanticTest");
+    const auto emitted = charmsharp::detail::emit_ci(source, model);
+    equal(emitted, output.interface_source);
+    equal(emitted, charmsharp::detail::emit_ci(source, model));
     contains(output.interface_source, "entry void recv(int x);");
     contains(output.cpp_source, "Worker_SDAG_CODE");
 
