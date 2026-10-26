@@ -132,3 +132,23 @@ jobs:
         run: |
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
           make charm-sdag-extended
+
+  output-equivalence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out PR2 compiler
+        uses: actions/checkout@v6
+        with:
+          path: current
+      - name: Check out merged PR1 compiler (frozen baseline)
+        uses: actions/checkout@v6
+        with:
+          ref: ba914cf1cb504344ac695dbcbac0791c631999d3
+          path: baseline
+      - name: Build both compiler versions
+        run: |
+          make -C baseline
+          make -C current
+      - name: Compare generated .ci and .cpp byte for byte
+        run: bash current/tests/output_equivalence.sh "$GITHUB_WORKSPACE/current" "$GITHUB_WORKSPACE/baseline"
