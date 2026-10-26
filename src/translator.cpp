@@ -42,26 +42,15 @@ struct ParsedTranslation {
 };
 
 struct Chare {
-    struct Method {
-        std::string name;
-        std::string signature;
-        std::size_t begin;
-        std::size_t end;
-        bool definition;
-    };
     struct Receive {
         std::string name;
-        std::string signature;
+        std::vector<std::string> parameter_key;
         std::size_t token;
         detail::SourceRange parameters;
     };
     std::string kind;
     std::string name;
-    std::string parallel_base;
-    std::vector<std::string> entries;
-    std::vector<Method> methods;
     std::vector<Receive> receives;
-    bool has_sdag = false;
 };
 
 std::string_view trim(std::string_view text) {
@@ -416,7 +405,7 @@ private:
         const auto close = matching(brace, "{", "}", tokens_.size());
         if (!is(close + 1, ";")) fail(close, "expected ';' after chare body");
 
-        chares_.push_back({kind, chare_name, bases.parallel, {}, {}, {}, false});
+        chares_.push_back({kind, chare_name, {}});
         detail::ParallelDeclaration semantic_chare;
         semantic_chare.kind = is(keyword, "array") ? detail::ParallelKind::Array :
                               is(keyword, "mainchare") ? detail::ParallelKind::Mainchare :
@@ -435,44 +424,43 @@ private:
         semantic_.parallel_types.push_back(std::move(semantic_chare));
         parse_members(brace + 1, close, chares_.back());
         auto& chare = chares_.back();
+        auto& entries = semantic_.parallel_types.back().entries;
         std::vector<Chare::Receive> registered_receives;
         for (const auto& receive : chare.receives) {
             const auto repeated = std::find_if(registered_receives.begin(), registered_receives.end(),
                 [&](const Chare::Receive& registered) { return registered.name == receive.name; });
             if (repeated != registered_receives.end()) {
-                if (repeated->signature != receive.signature)
+                if (repeated->parameter_key != receive.parameter_key)
                     fail(receive.token, "inconsistent SDAG receive signatures");
                 continue;
             }
             registered_receives.push_back(receive);
-            auto existing = std::find_if(chare.methods.begin(), chare.methods.end(),
-                                         [&](const Chare::Method& method) {
-                                             return method.name == receive.name;
-                                         });
-            if (existing == chare.methods.end()) {
-                chare.entries.push_back(receive.signature);
+            auto existing = std::find_if(entries.begin(), entries.end(),
+                [&](const detail::EntryDeclaration& entry) {
+                    return entry.name == receive.name && entry.parameter_key == receive.parameter_key;
+                });
+            if (existing == entries.end()) {
+                if (std::any_of(entries.begin(), entries.end(), [&](const auto& entry) {
+                        return entry.name == receive.name;
+                    }))
+                    fail(receive.token, "incompatible explicit SDAG receive entry declaration");
                 detail::EntryDeclaration inferred;
                 inferred.name = receive.name;
                 inferred.return_type = "void";
                 inferred.parameter_list = std::string(source_.substr(
                     receive.parameters.begin, receive.parameters.end - receive.parameters.begin));
+                inferred.parameter_key = receive.parameter_key;
                 inferred.signature = receive.parameters;
                 inferred.source = receive.parameters;
                 inferred.is_receive = true;
                 inferred.is_implicit = true;
-                semantic_.parallel_types.back().entries.push_back(std::move(inferred));
+                entries.push_back(std::move(inferred));
             } else {
-                if (existing->signature != receive.signature)
+                if (existing->return_type.empty() || !existing->attributes.empty())
                     fail(receive.token, "incompatible explicit SDAG receive entry declaration");
-                if (existing->definition)
+                if (existing->is_definition)
                     fail(receive.token, "SDAG receive entry cannot have a C++ implementation");
-                // The SDAG macro supplies the C++ receive method.
-                auto& semantic_entries = semantic_.parallel_types.back().entries;
-                auto declared = std::find_if(semantic_entries.begin(), semantic_entries.end(),
-                    [&](const detail::EntryDeclaration& entry) {
-                        return entry.name == receive.name;
-                    });
-                if (declared != semantic_entries.end()) declared->is_receive = true;
+                existing->is_receive = true;
             }
         }
         return close + 2;
@@ -504,6 +492,65 @@ private:
         }
     }
 
+
+    // Normalize supported simple declarators without reconstructing emitted text.
+    // Complex C++ declarators retain their tokens; type aliases are not resolved.
+    std::vector<std::string> parameter_key(std::size_t open, std::size_t close) const {
+        std::vector<std::string> key;
+        std::vector<std::pair<std::string, std::string>> names;
+        auto first = open + 1;
+        int depth = 0;
+        std::size_t parameter_index = 0;
+        for (auto i = first; i <= close; ++i) {
+            if (i != close) {
+                if (is(i, "(") || is(i, "[") || is(i, "<")) ++depth;
+                if (is(i, ")") || is(i, "]") || is(i, ">")) --depth;
+                if (!is(i, ",") || depth != 0) continue;
+            }
+            auto declarator_end = first;
+            while (declarator_end < i && !is(declarator_end, "[")) ++declarator_end;
+            auto name = i; // No name identified in an opaque/unnamed parameter.
+            const auto is_type_word = [&](std::size_t token) {
+                const auto word = token_text(token);
+                return word == "void" || word == "bool" || word == "char" ||
+                       word == "int" || word == "float" || word == "double" ||
+                       word == "short" || word == "long" || word == "signed" ||
+                       word == "unsigned" || word == "const" || word == "volatile" ||
+                       word == "auto" || word == "wchar_t" || word == "char8_t" ||
+                       word == "char16_t" || word == "char32_t";
+            };
+            if (declarator_end > first + 1 &&
+                tokens_[declarator_end - 1].kind == Kind::Identifier &&
+                !is_type_word(declarator_end - 1) && !is(declarator_end - 2, ":")) {
+                bool simple = true;
+                bool has_type = false;
+                for (auto t = first; t + 1 < declarator_end; ++t) {
+                    if (tokens_[t].kind != Kind::Identifier && !is(t, ":") &&
+                        !is(t, "*") && !is(t, "&")) simple = false;
+                    if (tokens_[t].kind == Kind::Identifier &&
+                        !is(t, "const") && !is(t, "volatile")) has_type = true;
+                }
+                if (simple && has_type) name = declarator_end - 1;
+            }
+            if (name != i)
+                names.emplace_back(token_text(name), "$" + std::to_string(parameter_index));
+            for (auto t = first; t < i; ++t) {
+                if (t == name) continue;
+                auto word = token_text(t);
+                if (t > declarator_end) {
+                    const auto bound = std::find_if(names.begin(), names.end(),
+                        [&](const auto& parameter) { return parameter.first == word; });
+                    if (bound != names.end()) word = bound->second;
+                }
+                key.push_back(std::move(word));
+            }
+            if (i != close) key.emplace_back(",");
+            ++parameter_index;
+            first = i + 1;
+        }
+        if (key.size() == 1 && key.front() == "void") key.clear();
+        return key;
+    }
 
     bool analyze_entry_arrays(std::size_t open, std::size_t close) {
         bool found = false;
@@ -657,9 +704,6 @@ private:
         const auto receive_close = matching(receive, "(", ")", tokens_.size());
         if (is(receive_close + 1, ","))
             fail(receive_close + 1, "Phase 5.3 does not support multiple receives");
-        const auto receive_signature = "void " + receive_name + std::string(
-            source_.substr(tokens_[receive].begin,
-                           tokens_[receive_close].end - tokens_[receive].begin));
         const auto serial_or_brace = receive_close + 1;
         const bool explicit_serial = is(serial_or_brace, "serial");
         const auto receive_brace = explicit_serial ? serial_or_brace + 1 : serial_or_brace;
@@ -671,7 +715,7 @@ private:
                 (is(i, "case") && is(i + 1, "{")))
                 fail(i, "nested SDAG awaits are deferred");
         }
-        chare.receives.push_back({receive_name, receive_signature, receive - 1,
+        chare.receives.push_back({receive_name, parameter_key(receive, receive_close), receive - 1,
                                   {tokens_[receive].begin, tokens_[receive_close].end}});
         entry.sdag_receives.push_back({
             {first_byte + node.begin, first_byte + node.end},
@@ -777,15 +821,16 @@ private:
         if (!is(body, ";") && !is(body, "{"))
             fail(body, "entry qualifiers, trailing return types and initializer lists are deferred");
 
-        std::string signature;
-        for (const auto& attribute : attributes) signature += "[" + attribute + "] ";
-        signature += trim(source_.substr(tokens_[begin].begin,
-                                                    tokens_[close].end - tokens_[begin].begin));
-        if (std::find(chare.entries.begin(), chare.entries.end(), signature) != chare.entries.end())
+        const auto key = parameter_key(open, close);
+        const auto& entries = semantic_.parallel_types.back().entries;
+        if (std::any_of(entries.begin(), entries.end(), [&](const auto& entry) {
+                return entry.name == name && entry.parameter_key == key;
+            }))
             fail(begin, "duplicate entry method signature");
 
         detail::EntryDeclaration semantic_entry;
         semantic_entry.name = name;
+        semantic_entry.parameter_key = key;
         if (name != chare.name)
             semantic_entry.return_type = std::string(trim(source_.substr(
                 tokens_[begin].begin, tokens_[open - 1].begin - tokens_[begin].begin)));
@@ -800,8 +845,6 @@ private:
         if (is(body, ";")) {
             semantic_entry.source = {tokens_[entry_start].begin, tokens_[body].end};
             semantic_.parallel_types.back().entries.push_back(std::move(semantic_entry));
-            chare.entries.emplace_back(signature);
-            chare.methods.push_back({name, signature, tokens_[begin].begin, tokens_[body].end, false});
             return body + 1;
         }
         const auto body_end = matching(body, "{", "}", end);
@@ -831,11 +874,6 @@ private:
             semantic_entry.is_sdag = true;
             semantic_entry.sdag_body = std::move(analyzed);
             semantic_entry.sdag_body_start = first_byte;
-            chare.has_sdag = true;
-        } else {
-            chare.entries.emplace_back(signature);
-            chare.methods.push_back({name, signature, tokens_[begin].begin,
-                                     tokens_[body_end].end, true});
         }
         semantic_entry.source = {tokens_[entry_start].begin, tokens_[body_end].end};
         semantic_.parallel_types.back().entries.push_back(std::move(semantic_entry));

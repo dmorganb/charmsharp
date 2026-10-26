@@ -746,6 +746,59 @@ entry:
 
 }
 
+void normalized_entry_signatures() {
+    const auto source = R"SRC(chare A {
+entry:
+    void /* return comment */ recv(int value);
+    void f() {
+        when recv( int /* type comment */ other ) {}
+        when recv(int third) {}
+    }
+};)SRC";
+    const auto model = charmsharp::detail::analyze(source, "M");
+    ++checks;
+    if (model.parallel_types.front().entries.size() != 2 ||
+        !model.parallel_types.front().entries.front().is_receive)
+        throw std::runtime_error("compatible receive was not matched");
+    const auto generated = charmsharp::translate(source, "M");
+    contains(generated.interface_source, "entry void /* return comment */ recv(int value);");
+    contains(generated.interface_source, "when recv( int /* type comment */ other ) serial {}");
+    const auto overloaded = charmsharp::detail::analyze(
+        "chare A { entry: void recv(float value); void recv(int value); "
+        "void f() { when recv(int other) {} } };", "M");
+    ++checks;
+    if (overloaded.parallel_types.front().entries.front().is_receive ||
+        !overloaded.parallel_types.front().entries.at(1).is_receive)
+        throw std::runtime_error("wrong overload selected for receive");
+    const auto arrays = charmsharp::detail::analyze(
+        "chare A { entry: void recv(int n, float data[n]); "
+        "void f() { when recv(int count, float values[count]) {} } };", "M");
+    ++checks;
+    if (!arrays.parallel_types.front().entries.front().is_receive)
+        throw std::runtime_error("renamed array bound did not match");
+    contains(charmsharp::translate(
+        "chare A { entry: void f(const int value); void f(int* value); "
+        "void f(unsigned long); void f(const Widget); };", "M").interface_source,
+        "entry void f(const Widget);");
+    rejects("chare A { entry: void f(int x); void f( int /*comment*/ y ); };",
+            "duplicate entry method signature");
+    rejects("chare A { entry: void f(void); void f(); };", "duplicate entry method signature");
+    rejects("chare A { entry: void f(unsigned long x); void f(unsigned long y); };",
+            "duplicate entry method signature");
+    rejects("chare A { entry: void f() { when ping() {} } void f() { when ping() {} } };",
+            "duplicate entry method signature");
+    rejects("chare A { entry: void f() { when ping() {} } void f(); };",
+            "duplicate entry method signature");
+    rejects("chare A { entry: void f(); void f() { when ping() {} } };",
+            "duplicate entry method signature");
+    rejects("chare A { entry: [[charm::threaded]] void recv(int x); "
+            "void f() { when recv(int y) {} } };", "incompatible explicit SDAG receive");
+    rejects("chare A { entry: void recv(int x) {} "
+            "void f() { when recv( int y ) {} } };", "cannot have a C++ implementation");
+    rejects("chare A { entry: void f() { when recv(int x) {} when recv(float y) {} } };",
+            "inconsistent SDAG receive signatures");
+}
+
 void implicit_sdag_serial_runs() {
     const auto generated = charmsharp::translate(R"SRC(chare Worker {
     int total = 0;
@@ -964,6 +1017,7 @@ int main() {
     semantic_model_is_populated_without_changing_translation();
     sdag_structure();
     basic_sdag_when_lowering();
+    normalized_entry_signatures();
     implicit_sdag_serial_runs();
     sdag_if_for_ref_matching();
     sdag_extended_controls();
