@@ -9,10 +9,9 @@ command -v charmc >/dev/null 2>&1 || { echo "charmc is required for runtime inte
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
-"$tool" --module "$module" --out-dir "$tmp" "$input"
+"$tool" --build --module "$module" --out-dir "$tmp" -o "$tmp/example" "$input"
 cd "$tmp"
-charmc "$module.ci"
-charmc "$module.cpp" -o example
 output=$(./example +p2)
 printf '%s\n' "$output"
 printf '%s\n' "$output" | grep -Fq "$expected"
+

@@ -39,6 +39,25 @@ charmc Hello.cpp -o Hello
 ./Hello +p2
 ```
 
+Alternatively, translate and compile in one command (without running):
+
+```sh
+./build/charmsharp --build --out-dir generated examples/Hello.csh -o Hello
+./Hello +p2
+```
+
+`--build` invokes `charmc` on the generated `.ci`, then on the `.cpp` to
+compile and link. It requires `charmc` on `PATH` and stops if either step
+fails, displaying the toolchain diagnostics. Without `--build`, translation
+behaves as before; `-o` is only valid with `--build`.
+
+Generated files remain in `--out-dir` (the current directory by default).
+The executable defaults to the module name in the invoking directory;
+`-o` paths are also relative to that directory. Use `--force` to overwrite
+existing generated sources or an executable. The input source directory is
+added to the C++ include search path for local headers. The build driver
+uses POSIX process APIs (Linux/macOS).
+
 A convenient end-to-end check from the repository root is `make charm-run`.
 For a compile-only example, see `examples/Counter.csh` and `make charm-check`.
 
@@ -235,3 +254,4 @@ XLAT-I representation directly from the semantic model instead of emitting
 textual `.ci` files first. This integration has not been implemented or
 validated. It would retain Charm++'s generated C++ bindings and existing
 runtime.
+
