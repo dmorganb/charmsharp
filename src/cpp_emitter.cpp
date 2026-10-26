@@ -1,6 +1,7 @@
 #include "cpp_emitter.hpp"
 
 #include <algorithm>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -51,6 +52,14 @@ std::string emit_cpp(std::string_view source, const SemanticModel& model) {
     for (const auto& chare : model.parallel_types)
         replace_parallel(edits, chare);
     for (const auto& parameter : model.marshalled_arrays) {
+        // SDAG owns these signatures. Do not rewrite bytes that are removed
+        // with the containing method or explicit receive declaration.
+        if (std::any_of(edits.begin(), edits.end(), [&](const Edit& edit) {
+                return edit.replacement.empty() &&
+                       edit.begin <= parameter.name.begin &&
+                       parameter.suffix.end <= edit.end;
+            }))
+            continue;
         edits.push_back({parameter.name.begin, parameter.name.begin, "*"});
         edits.push_back({parameter.suffix.begin, parameter.suffix.end, ""});
     }
@@ -60,8 +69,13 @@ std::string emit_cpp(std::string_view source, const SemanticModel& model) {
         return a.begin > b.begin;
     });
     std::string cpp(source);
-    for (const auto& edit : edits)
+    auto boundary = source.size();
+    for (const auto& edit : edits) {
+        if (edit.begin > edit.end || edit.end > boundary)
+            throw std::logic_error("overlapping or invalid C++ source edits");
         cpp.replace(edit.begin, edit.end - edit.begin, edit.replacement);
+        boundary = edit.begin;
+    }
     cpp.insert(0, "#include \"" + model.module_name + ".decl.h\"\n");
     if (cpp.empty() || cpp.back() != '\n') cpp += '\n';
     cpp += "#include \"" + model.module_name + ".def.h\"\n";
@@ -69,3 +83,4 @@ std::string emit_cpp(std::string_view source, const SemanticModel& model) {
 }
 
 } // namespace charmsharp::detail
+

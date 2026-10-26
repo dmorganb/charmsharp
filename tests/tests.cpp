@@ -314,6 +314,32 @@ void Worker::receive(int n, float data[n]) {
             "unsupported marshalled array element type");
 }
 
+void sdag_array_edits_do_not_overlap() {
+    for (const auto source : {
+        "chare A { entry: void f(int n, float data[n]) { when ping() {} }void after() {} };",
+        "chare A { entry: void recv(int n, float data[n]);void after() {} void f() { when recv(int n, float data[n]) {} } };"
+    }) {
+        const auto generated = charmsharp::translate(source, "M");
+        const auto expected = std::string("#include \"M.decl.h\"\n") +
+            "class A : public CBase_A { public: void after() {} " +
+            (std::string_view(source).find("void recv") != std::string_view::npos ? " " : "") +
+            "\npublic:\n    A_SDAG_CODE\n};\n#include \"M.def.h\"\n";
+        equal(generated.cpp_source, expected);
+        contains(generated.interface_source, "float data[n]");
+    }
+    const auto source = "chare A { entry: void f(int n, float data[n]); };";
+    auto model = charmsharp::detail::analyze(source, "M");
+    model.marshalled_arrays.push_back(model.marshalled_arrays.front());
+    ++checks;
+    try {
+        (void)charmsharp::detail::emit_cpp(source, model);
+    } catch (const std::logic_error& error) {
+        contains(error.what(), "overlapping or invalid");
+        return;
+    }
+    throw std::runtime_error("overlapping edits were accepted");
+}
+
 void fixed_size_messages() {
     const auto output = charmsharp::translate(R"SRC(message Payload {
 public:
@@ -865,6 +891,7 @@ int main() {
     reduction_target_entries();
     entry_constructor_initializers();
     marshalled_entry_arrays();
+    sdag_array_edits_do_not_overlap();
     fixed_size_messages();
     readonly_globals();
     ordinary_inheritance();
@@ -879,3 +906,4 @@ int main() {
     diagnostics();
     std::cout << "PASS " << checks << " checks\n";
 }
+
