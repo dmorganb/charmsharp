@@ -518,11 +518,16 @@ entry:
     if (!recv.is_receive || !recv.is_implicit)
         throw std::runtime_error("implicit SDAG receive metadata missing");
 
-    // The public translate() API still uses the legacy emitters in PR1.
+    // analyze() does not emit; the public translator delegates .ci rendering
+    // to the same model-backed emitter.
     const auto output = charmsharp::translate(source, "SemanticTest");
     const auto emitted = charmsharp::detail::emit_ci(source, model);
     equal(emitted, output.interface_source);
     equal(emitted, charmsharp::detail::emit_ci(source, model));
+    auto renamed_model = model;
+    renamed_model.module_name = "RenamedModule";
+    contains(charmsharp::detail::emit_ci(source, renamed_model),
+             "mainmodule RenamedModule {");
     contains(output.interface_source, "entry void recv(int x);");
     contains(output.cpp_source, "Worker_SDAG_CODE");
 
