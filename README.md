@@ -171,6 +171,11 @@ and a Charm# port:
 | [Jacobi2D](benchmarks/jacobi2d/) | 2D arrays, marshalled halo exchanges | `make charm-benchmark-jacobi2d` |
 | [Prefix Sum](benchmarks/prefix-sum/) | SDAG loop, conditional, tagged receives | `make charm-benchmark-prefix-sum` |
 
+Unit and CLI tests run with both GCC and Clang in GitHub Actions. A separate
+Clang job runs them with AddressSanitizer, leak detection, and
+UndefinedBehaviorSanitizer; sanitizer reports fail CI even when a CLI test
+expects a nonzero exit status.
+
 All four comparisons are run in GitHub Actions against **Charm++ v8.0.0**.
 Tests compile and execute the original and transpiled implementations and
 compare their numerical or observable results. Prefix Sum checks every
@@ -254,4 +259,5 @@ XLAT-I representation directly from the semantic model instead of emitting
 textual `.ci` files first. This integration has not been implemented or
 validated. It would retain Charm++'s generated C++ bindings and existing
 runtime.
+
 

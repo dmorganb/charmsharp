@@ -703,7 +703,7 @@ private:
             fail(receive, "expected SDAG receive parameters");
         const auto receive_close = matching(receive, "(", ")", tokens_.size());
         if (is(receive_close + 1, ","))
-            fail(receive_close + 1, "Phase 5.3 does not support multiple receives");
+            fail(receive_close + 1, "multiple receives in one when statement are not supported");
         const auto serial_or_brace = receive_close + 1;
         const bool explicit_serial = is(serial_or_brace, "serial");
         const auto receive_brace = explicit_serial ? serial_or_brace + 1 : serial_or_brace;
@@ -786,7 +786,7 @@ private:
         if (analyze_entry_arrays(open, close))
             array_entry_methods_.emplace_back(chare.name, name);
         for (std::size_t i = open + 1; i < close; ++i) {
-            if (is(i, "=")) fail(i, "default entry arguments are deferred in phase 1");
+            if (is(i, "=")) fail(i, "default entry arguments are not supported");
         }
         // Entry constructor initializer lists belong only in the C++ definition,
         // not in the .ci signature. Validate the structural shape while leaving
@@ -819,7 +819,7 @@ private:
                 fail(body, "expected constructor body after initializer list");
         }
         if (!is(body, ";") && !is(body, "{"))
-            fail(body, "entry qualifiers, trailing return types and initializer lists are deferred");
+            fail(body, "entry qualifiers and trailing return types are not supported");
 
         const auto key = parameter_key(open, close);
         const auto& entries = semantic_.parallel_types.back().entries;
