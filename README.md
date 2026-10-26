@@ -8,12 +8,8 @@ linking, and execution to the existing Charm++ toolchain.
 
 Its goal is to reduce the amount of handwritten and duplicated source code
 needed for Charm++ programs, while preserving ordinary C++ wherever possible.
-Charm# is a **research prototype** for a thesis, not an alternative runtime
-or a complete C++ parser. Its longer-term direction is to modernize the
-Charm++ language frontend while retaining the existing Charm++ compiler and
-runtime infrastructure. It currently uses a handwritten tokenizer, a small
-structural parser, a backend-independent semantic model, and source-range
-preserving emitters.
+Charm# modernizes the Charm++ language frontend while retaining the existing
+Charm++ compiler and runtime infrastructure.
 
 ## Quick start
 
@@ -118,18 +114,6 @@ Tokenizer + structural/SDAG parsing and semantic analysis
   individual emitters are internal implementation details, not stable public
   interfaces.
 
-This split was introduced in [PR #32](https://github.com/dmorganb/charmsharp/pull/32),
-[PR #33](https://github.com/dmorganb/charmsharp/pull/33), and
-[PR #34](https://github.com/dmorganb/charmsharp/pull/34).
-The refactors were checked against the preceding compiler version using
-**byte-for-byte comparisons of both output files for 19 committed Charm#
-programs**, in addition to unit and Charm++ v8.0.0 integration tests.
-
-**Possible future integration:** a new backend might build an XLAT-I
-representation through Charm++'s XI-Builder facilities rather than emitting
-textual `.ci` first. This has **not** been implemented or validated; it would
-not by itself eliminate Charm++'s generated C++ bindings or change its runtime.
-
 ## Implemented language features
 
 These are validated **subsets**, not exhaustive compatibility with the
@@ -206,10 +190,11 @@ for upstream revision and test details.
 Unsupported constructs generally produce source-located diagnostics rather
 than speculative translations.
 
-## Thesis measurement work
+## Source complexity comparison
 
-The separate [Halstead analyzer](tools/charm-metrics/README.md) is implemented
-and tests source-level lexical complexity across the four paired benchmarks.
+The standalone [Halstead analyzer](tools/charm-metrics/README.md) compares
+source-level lexical complexity between Charm++ and Charm# programs, including
+the four paired benchmarks.
 It aggregates operator and operand frequencies across **developer-authored**
 files before calculating Halstead vocabulary, length, volume, difficulty,
 and effort. It excludes generated `.ci`, transpiled C++, and Charm++-generated
@@ -227,10 +212,8 @@ tools/charm-metrics/charm-metrics benchmark --root benchmarks --format text
 See the [benchmark results](docs/halstead-benchmark-results.md) for
 the observed volume, difficulty, and effort differences, reproducible CI
 artifacts, and the structural-punctuation sensitivity analysis. These
-results are **descriptive measurements of four paired programs**, not evidence
-of statistically significant improvements in human comprehension time or
-observed defect rates. The thesis's programmer-experiment and statistical
-evaluation are separate work.
+results describe source-level complexity for four paired programs; they do
+not establish improvements in human comprehension time or observed defect rates.
 
 ## Repository layout
 
@@ -245,13 +228,10 @@ docs/                   Grammar, coverage audit, roadmap, measurement policy
 .github/workflows/      Unit tests, output-equivalence checks, Charm++ integration, metrics
 ```
 
-## Design philosophy
+## Future work
 
-Charm# is an **extension grammar** over C++, not a reimplementation of C++20.
-The frontend recognizes only the additional Charm# structure, analyzes its
-semantics, and retains original C++ byte ranges in a common model. Independent
-emitters produce conventional Charm++ artifacts while preserving ordinary
-C++ source. The existing Charm++ toolchain still performs interface code
-generation, compilation, and execution. This separation keeps the language
-frontend small, makes each backend independently testable, and allows new
-backend experiments without redesigning the parser.
+A possible backend could use Charm++'s XI-Builder facilities to construct an
+XLAT-I representation directly from the semantic model instead of emitting
+textual `.ci` files first. This integration has not been implemented or
+validated. It would retain Charm++'s generated C++ bindings and existing
+runtime.
