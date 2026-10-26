@@ -409,6 +409,29 @@ entry:
     contains(reordered.interface_source, "module Order {\n    message M;\n    chare A");
 }
 
+void message_methods_preserve_ordinary_cpp() {
+    const auto body = R"CPP({
+public:
+    int values[2]{};
+    static constexpr auto answer = []() { return 42; };
+    int operator[](int i) const { return values[i]; }
+    void accept(int items[]);
+    int calculate() {
+        auto helper = []() { return 42; };
+        int local[] = {1, 2};
+        return helper() + local[0];
+    }
+};)CPP";
+    const auto source = std::string("message Payload ") + body;
+    const auto generated = charmsharp::translate(source, "M");
+    equal(generated.cpp_source, std::string("#include \"M.decl.h\"\nclass Payload : public CMessage_Payload ") +
+          body + "\n#include \"M.def.h\"\n");
+    equal(generated.interface_source, "module M {\n    message Payload;\n};\n");
+    rejects("message M { int values[]; };", "variable-size message arrays");
+    rejects("message M { int value, values[]; };", "variable-size message arrays");
+    rejects("message M { entry: void f(); };", "entry: is only valid");
+}
+
 void readonly_globals() {
     const auto output = charmsharp::translate(R"SRC(readonly int threshold;
 readonly double weights[3];
@@ -933,6 +956,7 @@ int main() {
     marshalled_entry_arrays();
     sdag_array_edits_do_not_overlap();
     fixed_size_messages();
+    message_methods_preserve_ordinary_cpp();
     readonly_globals();
     ordinary_inheritance();
     message_inheritance();

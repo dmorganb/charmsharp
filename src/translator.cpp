@@ -357,7 +357,15 @@ private:
         // Reject unsized array fields: those require the special variable-size
         // .ci metadata and allocation semantics not yet implemented here.
         for (auto i = brace + 1; i < close; ++i) {
-            if (is(i, "[") && is(i + 1, "]"))
+            // Method bodies, parameter lists and initializer expressions are
+            // ordinary C++. In particular, [] there may be a lambda capture.
+            if (is(i, "{") || is(i, "(")) {
+                const bool paren = is(i, "(");
+                i = matching(i, paren ? "(" : "{", paren ? ")" : "}", close);
+                continue;
+            }
+            if (is(i, "[") && is(i + 1, "]") && i > brace + 1 &&
+                tokens_[i - 1].kind == Kind::Identifier && !is(i - 1, "operator"))
                 fail(i, "variable-size message arrays are deferred");
             if (is(i, "entry") && is(i + 1, ":"))
                 fail(i, "entry: is only valid in parallel types");
@@ -852,3 +860,4 @@ SemanticModel analyze(std::string_view source, std::string_view module_name) {
 } // namespace detail
 
 } // namespace charmsharp
+
