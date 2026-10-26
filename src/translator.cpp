@@ -3,6 +3,7 @@
 #include "sdag.hpp"
 #include "semantic.hpp"
 #include "ci_emitter.hpp"
+#include "cpp_emitter.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -34,12 +35,6 @@ namespace {
 
 using detail::Kind;
 using detail::Token;
-
-struct Edit {
-    std::size_t begin;
-    std::size_t end;
-    std::string replacement;
-};
 
 struct ParsedTranslation {
     Generated generated;
@@ -138,7 +133,7 @@ public:
                           std::make_pair(class_name, method_name)) == array_entry_methods_.end())
                 continue;
             const auto close = matching(i + 4, "(", ")", tokens_.size());
-            rewrite_entry_arrays(i + 4, close);
+            analyze_entry_arrays(i + 4, close);
             i = close;
         }
         if (chares_.empty() && messages_.empty() && readonly_.empty())
@@ -150,18 +145,7 @@ public:
             });
         if (!emit_output) return {{}, std::move(semantic_)};
 
-        std::string cpp(source_);
-        // Applying backwards keeps all source offsets stable.
-        std::stable_sort(edits_.begin(), edits_.end(), [](const Edit& a, const Edit& b) {
-            return a.begin > b.begin;
-        });
-        for (const auto& edit : edits_) {
-            cpp.replace(edit.begin, edit.end - edit.begin, edit.replacement);
-        }
-        cpp.insert(0, "#include \"" + module_ + ".decl.h\"\n");
-        if (cpp.empty() || cpp.back() != '\n') cpp += '\n';
-        cpp += "#include \"" + module_ + ".def.h\"\n";
-
+        auto cpp = detail::emit_cpp(source_, semantic_);
         auto ci = detail::emit_ci(source_, semantic_);
         return {{std::move(ci), std::move(cpp)}, std::move(semantic_)};
     }
@@ -170,7 +154,6 @@ private:
     std::string_view source_;
     std::string module_;
     std::vector<Token> tokens_;
-    std::vector<Edit> edits_;
     detail::SemanticModel semantic_;
     std::vector<Chare> chares_;
     std::vector<std::pair<std::string, std::string>> array_entry_methods_;
@@ -353,7 +336,6 @@ private:
         declaration.declarator = {tokens_[type].begin, tokens_[end].begin};
         declaration.source = {tokens_[keyword].begin, tokens_[end].end};
         semantic_.readonly_variables.push_back(std::move(declaration));
-        edits_.push_back({tokens_[keyword].begin, tokens_[type].begin, ""});
         return end + 1;
     }
 
@@ -380,13 +362,11 @@ private:
             if (is(i, "entry") && is(i + 1, ":"))
                 fail(i, "entry: is only valid in parallel types");
         }
-        edits_.push_back({tokens_[keyword].begin, tokens_[name].begin, "class "});
-        edits_.push_back({tokens_[name].end, tokens_[brace].begin,
-                          " : public CMessage_" + message_name +
-                          (bases.cpp.empty() ? " " : ", " + bases.cpp + " ")});
         messages_.push_back(message_name);
         semantic_.messages.push_back({message_name, bases.cpp,
-                                      {tokens_[keyword].begin, tokens_[close + 1].end}});
+                                      {tokens_[keyword].begin, tokens_[close + 1].end},
+                                      {tokens_[name].begin, tokens_[name].end},
+                                      tokens_[brace].begin});
         return close + 2;
     }
 
@@ -428,10 +408,6 @@ private:
         const auto close = matching(brace, "{", "}", tokens_.size());
         if (!is(close + 1, ";")) fail(close, "expected ';' after chare body");
 
-        edits_.push_back({tokens_[keyword].begin, tokens_[name].begin, "class "});
-        edits_.push_back({tokens_[name].end, tokens_[brace].begin,
-                          " : public CBase_" + chare_name +
-                          (bases.cpp.empty() ? " " : ", " + bases.cpp + " ")});
         chares_.push_back({kind, chare_name, bases.parallel, {}, {}, {}, false});
         detail::ParallelDeclaration semantic_chare;
         semantic_chare.kind = is(keyword, "array") ? detail::ParallelKind::Array :
@@ -445,6 +421,9 @@ private:
         semantic_chare.parallel_base = bases.parallel;
         semantic_chare.ordinary_bases = bases.cpp;
         semantic_chare.source = {tokens_[keyword].begin, tokens_[close + 1].end};
+        semantic_chare.name_source = {tokens_[name].begin, tokens_[name].end};
+        semantic_chare.opening_brace = tokens_[brace].begin;
+        semantic_chare.closing_brace = tokens_[close].begin;
         semantic_.parallel_types.push_back(std::move(semantic_chare));
         parse_members(brace + 1, close, chares_.back());
         auto& chare = chares_.back();
@@ -486,12 +465,7 @@ private:
                         return entry.name == receive.name;
                     });
                 if (declared != semantic_entries.end()) declared->is_receive = true;
-                edits_.push_back({existing->begin, existing->end, ""});
             }
-        }
-        if (chare.has_sdag) {
-            edits_.push_back({tokens_[close].begin, tokens_[close].begin,
-                              "\npublic:\n    " + chare.name + "_SDAG_CODE\n"});
         }
         return close + 2;
     }
@@ -507,7 +481,8 @@ private:
                  is(i, "protected"))) {
                 in_entry = is(i, "entry");
                 if (in_entry)
-                    edits_.push_back({tokens_[i].begin, tokens_[i].end, "public"});
+                    semantic_.parallel_types.back().entry_labels.push_back(
+                        {tokens_[i].begin, tokens_[i].end});
                 i += 2;
                 continue;
             }
@@ -522,7 +497,7 @@ private:
     }
 
 
-    bool rewrite_entry_arrays(std::size_t open, std::size_t close) {
+    bool analyze_entry_arrays(std::size_t open, std::size_t close) {
         bool found = false;
         std::vector<std::string> scalar_lengths;
         auto first = open + 1;
@@ -553,9 +528,11 @@ private:
                            scalar_lengths.end()) {
                     fail(bracket + 1, "marshalled array bound must name an earlier integer parameter");
                 }
-                // In .ci keep T data[n]; C++ receives T *data.
-                edits_.push_back({tokens_[first + 1].begin, tokens_[first + 1].begin, "*"});
-                edits_.push_back({tokens_[bracket].begin, tokens_[bracket + 2].end, ""});
+                // Preserve the original declarator for both independent backends.
+                semantic_.marshalled_arrays.push_back({
+                    {tokens_[first + 1].begin, tokens_[first + 1].end},
+                    {tokens_[bracket].begin, tokens_[bracket + 2].end}
+                });
                 found = true;
             } else if (i == first + 2 && is(first, "int") &&
                        tokens_[first + 1].kind == Kind::Identifier) {
@@ -700,6 +677,7 @@ private:
             fail(begin, "preprocessor directives between entry methods are deferred");
 
         std::vector<std::string> attributes;
+        std::vector<detail::SourceRange> attribute_ranges;
         const auto entry_start = begin;
         while (is(begin, "[") && is(begin + 1, "[")) {
             // [[charm::threaded]], [[charm::sync]] and [[charm::reductiontarget]] map to .ci
@@ -716,7 +694,7 @@ private:
             if (std::find(attributes.begin(), attributes.end(), attribute) != attributes.end())
                 fail(begin, "duplicate Charm++ entry attribute");
             attributes.push_back(attribute);
-            edits_.push_back({tokens_[begin].begin, tokens_[begin + 7].end, ""});
+            attribute_ranges.push_back({tokens_[begin].begin, tokens_[begin + 7].end});
             begin += 8;
         }
         if (is(begin, "[")) fail(begin, "unsupported entry attribute syntax");
@@ -753,7 +731,7 @@ private:
         }
 
         const auto close = matching(open, "(", ")", end);
-        if (rewrite_entry_arrays(open, close))
+        if (analyze_entry_arrays(open, close))
             array_entry_methods_.emplace_back(chare.name, name);
         for (std::size_t i = open + 1; i < close; ++i) {
             if (is(i, "=")) fail(i, "default entry arguments are deferred in phase 1");
@@ -806,6 +784,7 @@ private:
         semantic_entry.parameter_list = std::string(source_.substr(
             tokens_[open].begin, tokens_[close].end - tokens_[open].begin));
         semantic_entry.attributes = attributes;
+        semantic_entry.attribute_ranges = std::move(attribute_ranges);
         semantic_entry.signature = {tokens_[entry_start].begin, tokens_[close].end};
         semantic_entry.method_signature = {tokens_[begin].begin, tokens_[close].end};
         semantic_entry.is_definition = !is(body, ";");
@@ -845,7 +824,6 @@ private:
             semantic_entry.sdag_body = std::move(analyzed);
             semantic_entry.sdag_body_start = first_byte;
             chare.has_sdag = true;
-            edits_.push_back({tokens_[begin].begin, tokens_[body_end].end, ""});
         } else {
             chare.entries.emplace_back(signature);
             chare.methods.push_back({name, signature, tokens_[begin].begin,
