@@ -631,11 +631,9 @@ private:
                         first == "signed" || first == "short" || first == "long")
                         fail(token, "local declaration before an SDAG wait requires a chare field");
                 }
-                auto last = n;
-                while (last + 1 < nodes.size() &&
-                       nodes[last + 1].kind == detail::SdagKind::Ordinary)
-                    ++last;
-                n = last + 1;
+                // Emission groups ordinary runs into serial blocks, but every
+                // statement needs validation, not just the first in each run.
+                ++n;
                 continue;
             }
             analyze_sdag_node(text, first_byte, node, chare, entry);

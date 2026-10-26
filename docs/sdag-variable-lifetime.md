@@ -83,8 +83,11 @@ Using a field is not equivalent to per-invocation coroutine-local storage.
 - Charm# passes ordinary C++ text through as far as possible. It does **not**
   implement automatic closure capture, coroutine frames, or local-variable
   promotion to chare fields.
-- Phase 5.2 rejects a conservative subset of recognizable local declarations
-  in ordinary runs before an SDAG wait.
+- The compiler checks every statement in an ordinary run before an SDAG wait
+  for a conservative subset of recognizable local declarations, including
+  declarations preceded by calls or assignments. This also applies to runs
+  inside structurally parsed control blocks. Explicit serial blocks remain
+  opaque; this check does not track uses across enclosing scopes.
 - Phase 5.3 explicitly rejects common typed `for` loop initializers such as
   `for (int step = ...)`, with the diagnostic:
   `SDAG for index must be a persistent chare field`.
@@ -120,3 +123,4 @@ language enhancement after the initial thesis benchmarks.
   `make charm-sdag-control` in GitHub Actions with Charm++ v8.0.0.
 - Charm++'s [SDAG documentation](https://charm.readthedocs.io/en/v7.0.0/charm%2B%2B/manual.html)
   describes `when`-triggered continuation behavior and reference matching.
+

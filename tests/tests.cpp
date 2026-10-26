@@ -834,6 +834,40 @@ entry:
             "multiple receives");
 }
 
+void sdag_checks_each_local_declaration() {
+    for (const auto run : {
+        "int x = 1; ping(); pong();",
+        "ping(); int x = 1; pong();",
+        "ping(); pong(); int x = 1;"
+    }) {
+        const auto body = std::string(run) + " when recv() { use(x); }";
+        rejects("chare A { entry: void f() { " + body + " } };",
+                "local declaration before an SDAG wait");
+        rejects("chare A { entry: void f() { if (ready) { " + body + " } } };",
+                "local declaration before an SDAG wait");
+        rejects("chare A { entry: void f() { while (ready) { " + body + " } } };",
+                "local declaration before an SDAG wait");
+    }
+    for (const auto declaration : {"auto x = 1;", "const int x = 1;", "unsigned x = 1;"})
+        rejects(std::string("chare A { entry: void f() { ping(); ") + declaration +
+                " when recv() { use(x); } } };", "local declaration before an SDAG wait");
+    const auto persistent = charmsharp::translate(
+        "chare A { int x; entry: void f() { ping(); x = 1; when recv() { use(x); } } };", "M");
+    contains(persistent.interface_source, "ping(); x = 1;");
+    contains(persistent.interface_source, "when recv() serial { use(x); }");
+    // A local consumed in the final serial run does not cross a later wait.
+    contains(charmsharp::translate(
+        "chare A { entry: void f() { when recv() {} ping(); int x = 1; use(x); } };", "M").interface_source,
+        "ping(); int x = 1; use(x);");
+    const std::string located = "chare A { entry: void f() {\n  ping();\n  int x = 1;\n  when recv() {}\n} };";
+    try {
+        (void)charmsharp::translate(located, "M");
+        throw std::runtime_error("expected local lifetime diagnostic");
+    } catch (const charmsharp::Diagnostic& error) {
+        contains(charmsharp::format_diagnostic(located, error), "3:3:");
+    }
+}
+
 void sdag_if_for_ref_matching() {
     const auto generated = charmsharp::translate(R"SRC(chare Worker {
     int total = 0;
@@ -1020,6 +1054,7 @@ int main() {
     basic_sdag_when_lowering();
     normalized_entry_signatures();
     implicit_sdag_serial_runs();
+    sdag_checks_each_local_declaration();
     sdag_if_for_ref_matching();
     sdag_extended_controls();
     diagnostics();
