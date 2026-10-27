@@ -1,0 +1,112 @@
+{
+  "name": "Charm#",
+  "scopeName": "source.charmsharp",
+  "patterns": [
+    {
+      "include": "#charm-attributes"
+    },
+    {
+      "include": "#parallel-objects"
+    },
+    {
+      "include": "#entries"
+    },
+    {
+      "include": "#sdag"
+    },
+    {
+      "include": "source.cpp"
+    }
+  ],
+  "repository": {
+    "charm-attributes": {
+      "patterns": [
+        {
+          "name": "meta.attribute.charmsharp",
+          "match": "(\\[\\[)\\s*(charm)(::)([A-Za-z_][A-Za-z_0-9]*)",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.attribute.begin.charmsharp"
+            },
+            "2": {
+              "name": "entity.name.namespace.charmsharp"
+            },
+            "3": {
+              "name": "punctuation.accessor.charmsharp"
+            },
+            "4": {
+              "name": "entity.other.attribute-name.charmsharp"
+            }
+          }
+        }
+      ]
+    },
+    "parallel-objects": {
+      "patterns": [
+        {
+          "match": "\\b(array)(\\s*)(\\[)(\\s*)([0-9]+)(D)(\\s*)(\\])",
+          "captures": {
+            "1": {
+              "name": "keyword.declaration.charmsharp"
+            },
+            "3": {
+              "name": "punctuation.section.brackets.begin.charmsharp"
+            },
+            "5": {
+              "name": "constant.numeric.integer.charmsharp"
+            },
+            "6": {
+              "name": "keyword.other.dimension.charmsharp"
+            },
+            "8": {
+              "name": "punctuation.section.brackets.end.charmsharp"
+            }
+          }
+        },
+        {
+          "match": "\\b(chare|mainchare|group|nodegroup|message)\\b(?=\\s+[A-Za-z_][A-Za-z_0-9]*)",
+          "name": "keyword.declaration.charmsharp"
+        },
+        {
+          "match": "\\breadonly\\b(?=\\s+)",
+          "name": "keyword.declaration.charmsharp"
+        }
+      ]
+    },
+    "entries": {
+      "patterns": [
+        {
+          "match": "\\b(entry)(\\s*)(:)",
+          "captures": {
+            "1": {
+              "name": "keyword.other.entry.charmsharp"
+            },
+            "3": {
+              "name": "punctuation.separator.charmsharp"
+            }
+          }
+        }
+      ]
+    },
+    "sdag": {
+      "patterns": [
+        {
+          "match": "\\b(when)\\b(?=\\s+[A-Za-z_])",
+          "name": "keyword.control.sdag.charmsharp"
+        },
+        {
+          "match": "\\b(overlap|forall)\\b(?=\\s*[\\{\\[])",
+          "name": "keyword.control.sdag.charmsharp"
+        },
+        {
+          "match": "\\bcase\\b(?=\\s*\\{)",
+          "name": "keyword.control.sdag.charmsharp"
+        },
+        {
+          "match": "\\bserial\\b(?=\\s*\\{)",
+          "name": "keyword.control.sdag.charmsharp"
+        }
+      ]
+    }
+  }
+}
