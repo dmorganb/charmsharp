@@ -9,13 +9,19 @@ permissions:
 
 jobs:
   test:
-    name: Unit and CLI tests (${{ matrix.compiler }})
-    runs-on: ubuntu-24.04
+    name: Unit and CLI tests (${{ matrix.os }}, ${{ matrix.compiler }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
-        compiler: [g++, clang++]
+        include:
+          - os: ubuntu-24.04
+            compiler: g++
+          - os: ubuntu-24.04
+            compiler: clang++
+          - os: macos-14
+            compiler: clang++
     env:
       CXX: ${{ matrix.compiler }}
     steps:
