@@ -1,7 +1,15 @@
 #!/bin/sh
 set -eu
-tool=$(realpath "$1")
-input=$(realpath "$2")
+# Keep paths valid after changing directory without requiring realpath (absent
+# on older macOS versions). These paths need not have symlinks resolved.
+case "$1" in
+    /*) tool=$1 ;;
+    *) tool=$PWD/$1 ;;
+esac
+case "$2" in
+    /*) input=$2 ;;
+    *) input=$PWD/$2 ;;
+esac
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 mkdir "$tmp/bin"
