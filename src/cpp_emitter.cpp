@@ -41,6 +41,8 @@ void replace_parallel(std::vector<Edit>& edits, const ParallelDeclaration& chare
 
 std::string emit_cpp(std::string_view source, const SemanticModel& model) {
     std::vector<Edit> edits;
+    for (const auto& registration : model.template_registrations)
+        edits.push_back({registration.source.begin, registration.source.end, ""});
     for (const auto& readonly : model.readonly_variables)
         edits.push_back({readonly.source.begin, readonly.declarator.begin, ""});
     for (const auto& message : model.messages) {
