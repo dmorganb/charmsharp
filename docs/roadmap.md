@@ -277,3 +277,13 @@ see [SDAG variable lifetime](sdag-variable-lifetime.md).
   and executable template instantiations belong to 6.3.2–6.3.4.
 - Multi-parameter templates, defaults, templated groups/arrays/nodegroups,
   dependent arguments and cross-TU specialization discovery remain deferred.
+
+### 6.3.2 — Explicit template specialization registration
+
+- Accept `template chare Worker<int>;` for a previously defined scalar
+  template chare and emit `chare Worker<int>;` in the generated `.ci`.
+- The registration declaration is Charm# syntax, not C++ explicit class
+  instantiation; remove it from generated C++ without otherwise rewriting
+  the user's template definition. Detect repeated registrations.
+- Validate a runnable specialization against Charm++ v8.0.0; this exposes
+  any required generated-header or instantiation placement adjustments.
