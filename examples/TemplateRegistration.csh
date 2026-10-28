@@ -1,4 +1,4 @@
-// Explicit C++ class instantiation also generates Charm++ .ci registration.
+// Explicit Charm# specialization registration produces only .ci metadata.
 template<typename T>
 chare Worker {
     T value;
@@ -9,7 +9,7 @@ entry:
     }
 };
 
-template class Worker<int>;
+template chare Worker<int>;
 
 chare Main {
 entry:
