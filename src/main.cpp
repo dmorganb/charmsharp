@@ -115,16 +115,24 @@ int main(int argc, char** argv) {
 
         const auto ci_path = output_dir / (module + ".ci");
         const auto cpp_path = output_dir / (module + ".cpp");
-        if (!force && (fs::exists(ci_path) || fs::exists(cpp_path))) {
+        const auto registration_path = output_dir / (module + "_specializations.ci");
+        if (!force && (fs::exists(ci_path) || fs::exists(cpp_path) ||
+                       (!generated.registration_interface_source.empty() && fs::exists(registration_path)))) {
             throw std::runtime_error("output exists; use --force to overwrite");
         }
         fs::create_directories(output_dir);
         write_file(ci_path, generated.interface_source);
         write_file(cpp_path, generated.cpp_source);
+        if (!generated.registration_interface_source.empty())
+            write_file(registration_path, generated.registration_interface_source);
         std::cout << ci_path << '\n' << cpp_path << '\n';
+        if (!generated.registration_interface_source.empty())
+            std::cout << registration_path << '\n';
         if (build) {
             std::cout.flush();
             run_charmc(output_dir, {module + ".ci"});
+            if (!generated.registration_interface_source.empty())
+                run_charmc(output_dir, {module + "_specializations.ci"});
             run_charmc(output_dir, {module + ".cpp", "-I" + fs::absolute(input_path).parent_path().string(),
                                     "-o", executable.string()});
             std::cout << executable << '\n';
