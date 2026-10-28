@@ -276,6 +276,32 @@ entry:
 }
 
 
+void instrumentation_entry_attributes() {
+    const auto output = charmsharp::translate(R"SRC(chare Worker {
+entry:
+    [[charm::notrace]] void ping() { CkPrintf("ping"); }
+    [[charm::appwork]] void pong() { CkPrintf("pong"); }
+    [[charm::notrace]] [[charm::appwork]] void both(int value) {
+        CkPrintf("%d", value);
+    }
+};)SRC", "Instrumentation");
+    contains(output.interface_source, "entry [notrace] void ping();");
+    contains(output.interface_source, "entry [appwork] void pong();");
+    contains(output.interface_source, "entry [notrace, appwork] void both(int value);");
+    contains(output.cpp_source, "void both(int value)");
+    ++checks;
+    if (output.cpp_source.find("[[charm::") != std::string::npos)
+        throw std::runtime_error("instrumentation attributes leaked into C++ output");
+    rejects("chare Worker { entry: [[charm::notrace]] Worker(); };",
+            "entry constructors cannot");
+    rejects("chare Worker { entry: [[charm::notrace]] [[charm::notrace]] void ping(); };",
+            "duplicate Charm++");
+    rejects("chare Worker { entry: [[charm::notrace]] [[charm::threaded]] void ping(); };",
+            "unsupported Charm++ entry attribute combination");
+    rejects("chare Worker { entry: [[charm::appwork]] [[charm::sync]] void ping(); };",
+            "unsupported Charm++ entry attribute combination");
+}
+
 void reduction_target_entries() {
     const auto output = charmsharp::translate(R"SRC(mainchare Main {
 entry:
@@ -1083,6 +1109,7 @@ int main() {
     implicit_mainchare_convention();
     groups_and_arrays();
     attributed_entries();
+    instrumentation_entry_attributes();
     reduction_target_entries();
     entry_constructor_initializers();
     marshalled_entry_arrays();
