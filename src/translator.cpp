@@ -94,6 +94,17 @@ public:
                 ++depth;
             } else if (is(i, "}")) {
                 if (depth != 0) --depth;
+            } else if (is(i, "template") && is(i + 1, "<")) {
+                const auto close = matching(i + 1, "<", ">", tokens_.size());
+                if (is(close + 1, "chare")) {
+                    if (depth != 0) fail(i, "nested/namespace parallel types are not supported");
+                    if (conditional_depth != 0)
+                        fail(i, "a parallel type inside a preprocessor conditional is not supported");
+                    i = parse_chare(close + 1, i, close) - 1;
+                } else if (is(close + 1, "group") || is(close + 1, "nodegroup") ||
+                           is(close + 1, "mainchare") || is(close + 1, "array")) {
+                    fail(i, "only scalar chare templates are supported in Phase 6.3.1");
+                }
             } else if (is(i, "chare") || is(i, "mainchare") || is(i, "group") ||
                        is(i, "nodegroup") || (is(i, "array") && is(i + 1, "["))) {
                 if (depth != 0) fail(i, "nested/namespace parallel types are not supported");
@@ -367,7 +378,23 @@ private:
         return close + 2;
     }
 
-    std::size_t parse_chare(std::size_t keyword) {
+    std::size_t parse_chare(std::size_t keyword, std::size_t template_keyword = 0,
+                            std::size_t template_close = 0) {
+        std::string template_declaration;
+        std::string template_arguments;
+        if (template_close != 0) {
+            // Restrict the initial slice to one ordinary type parameter. The
+            // full template-argument grammar belongs to a later phase.
+            const auto type_keyword = template_keyword + 2;
+            const auto parameter = template_keyword + 3;
+            if ((!is(type_keyword, "typename") && !is(type_keyword, "class")) ||
+                parameter + 1 != template_close ||
+                tokens_[parameter].kind != Kind::Identifier)
+                fail(template_keyword, "chare templates currently require one typename/class parameter");
+            template_declaration = std::string(source_.substr(tokens_[template_keyword].begin,
+                tokens_[template_close].end - tokens_[template_keyword].begin));
+            template_arguments = "<" + token_text(parameter) + ">";
+        }
         std::string kind;
         auto name = keyword + 1;
         if (is(keyword, "array")) {
@@ -418,6 +445,8 @@ private:
                               is(keyword, "nodegroup") ? detail::ParallelKind::Nodegroup :
                               detail::ParallelKind::Chare;
         semantic_chare.name = chare_name;
+        semantic_chare.template_declaration = template_declaration;
+        semantic_chare.template_arguments = template_arguments;
         if (semantic_chare.kind == detail::ParallelKind::Array)
             semantic_chare.array_dimension = kind.substr(7, kind.size() - 9);
         semantic_chare.parallel_base = bases.parallel;
