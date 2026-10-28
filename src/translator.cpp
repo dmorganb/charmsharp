@@ -94,7 +94,7 @@ public:
                 ++depth;
             } else if (is(i, "}")) {
                 if (depth != 0) --depth;
-            } else if (is(i, "template") && is(i + 1, "class")) {
+            } else if (is(i, "template") && is(i + 1, "chare")) {
                 if (depth == 0 && conditional_depth == 0)
                     i = parse_template_registration(i) - 1;
             } else if (is(i, "template") && is(i + 1, "<")) {
@@ -382,8 +382,8 @@ private:
     }
 
     std::size_t parse_template_registration(std::size_t start) {
-        // Ordinary C++ explicit class instantiations are left alone unless
-        // their names refer to an already-declared Charm# chare template.
+        // A Charm# registration declaration is intentionally distinct from
+        // the C++ explicit class-instantiation syntax.
         const auto name_token = start + 2;
         if (name_token >= tokens_.size() || tokens_[name_token].kind != Kind::Identifier)
             return start + 1;
@@ -392,7 +392,8 @@ private:
             semantic_.parallel_types.end(), [&](const detail::ParallelDeclaration& declaration) {
                 return declaration.name == name && !declaration.template_declaration.empty();
             });
-        if (declared == semantic_.parallel_types.end()) return start + 1;
+        if (declared == semantic_.parallel_types.end())
+            fail(name_token, "template chare registration requires a preceding template chare declaration");
         const auto open = name_token + 1;
         if (!is(open, "<"))
             fail(open, "expected template specialization arguments in explicit registration");
