@@ -146,6 +146,11 @@ jobs:
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
           make charm-template-auto-registration
 
+      - name: Run two concrete chare template specializations
+        run: |
+          export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
+          make charm-template-multi-specialization
+
       - name: Build and execute group/nodegroup/array example
         run: |
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
