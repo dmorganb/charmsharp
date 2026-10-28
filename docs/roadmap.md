@@ -285,5 +285,8 @@ see [SDAG variable lifetime](sdag-variable-lifetime.md).
 - The registration declaration is Charm# syntax, not C++ explicit class
   instantiation; remove it from generated C++ without otherwise rewriting
   the user's template definition. Detect repeated registrations.
-- Validate a runnable specialization against Charm++ v8.0.0; this exposes
-  any required generated-header or instantiation placement adjustments.
+- Emit a separate `<module>_specializations.ci` and compile both interfaces;
+  import each module as required by Charmxi and include generated template
+  definitions under `CK_TEMPLATES_ONLY` before registration definitions.
+- Validate a runnable specialization against Charm++ v8.0.0, including
+  compile, link, runtime registration and successful proxy construction.
