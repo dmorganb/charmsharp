@@ -144,9 +144,16 @@ std::string emit_ci(std::string_view source, const SemanticModel& model) {
         }
         ci += "    };\n";
     }
-    for (const auto& registration : model.template_registrations)
-        ci += "    chare " + registration.name + registration.arguments + ";\n";
     ci += "};\n";
+    if (!model.template_registrations.empty()) {
+        // Charmxi treats a concrete registration as an external module user
+        // of the primary template; isolate it from the template declaration.
+        ci += "module " + model.module_name + "_specializations {\n";
+        ci += "    extern module " + model.module_name + ";\n";
+        for (const auto& registration : model.template_registrations)
+            ci += "    chare " + registration.name + registration.arguments + ";\n";
+        ci += "};\n";
+    }
     return ci;
 }
 
