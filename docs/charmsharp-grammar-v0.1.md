@@ -348,3 +348,28 @@ Standalone `inline` and group/array-only `local` are supported in Phase
 6.2c; simple non-void local returns are permitted. Other attribute combinations
 and complex dependent return types remain outside the tested subset; see
 [entry attribute semantics](entry-attribute-semantics.md).
+
+
+## 10. Phase 6.3.1 — Chare template declarations
+
+A scalar chare may have a single C++ type-template parameter:
+
+```cpp
+template<typename T>
+chare Worker {
+entry:
+    Worker(T initial);
+    void process(T value);
+};
+```
+
+The initial implementation accepts either `typename T` or `class T`
+without a default argument. It emits the equivalent templated Charm++ `.ci`
+interface, retains the original C++ `template` prefix and derives its class
+from `CBase_Worker<T>`. Ordinary C++ templates remain unmodified.
+
+This is **declaration-only** coverage. Concrete specialization registration,
+`CK_TEMPLATES_ONLY` inclusion and executable instantiation are addressed in
+subsequent Phase 6.3 slices. Multiple parameters, non-type template parameters,
+parameter packs and templated parallel kinds other than scalar `chare` are not
+supported by this slice.

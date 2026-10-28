@@ -18,7 +18,7 @@ struct Edit {
 void replace_parallel(std::vector<Edit>& edits, const ParallelDeclaration& chare) {
     edits.push_back({chare.source.begin, chare.name_source.begin, "class "});
     edits.push_back({chare.name_source.end, chare.opening_brace,
-                     " : public CBase_" + chare.name +
+                     " : public CBase_" + chare.name + chare.template_arguments +
                      (chare.ordinary_bases.empty() ? " " : ", " + chare.ordinary_bases + " ")});
     for (const auto& label : chare.entry_labels)
         edits.push_back({label.begin, label.end, "public"});

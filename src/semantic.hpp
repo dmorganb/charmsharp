@@ -59,6 +59,8 @@ struct EntryDeclaration {
 struct ParallelDeclaration {
     ParallelKind kind = ParallelKind::Chare;
     std::string name;
+    std::string template_declaration; // Original `template<typename T>` prefix, if any.
+    std::string template_arguments;   // E.g. `<T>` for generated CBase_Worker<T>.
     std::string array_dimension;  // Number without the D suffix; empty otherwise.
     std::string parallel_base;
     std::string ordinary_bases;   // Preserved C++ base-specifier text.

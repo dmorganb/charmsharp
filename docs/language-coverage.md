@@ -1,6 +1,6 @@
 # Charm# implementation coverage
 
-Status: 2026-10-23. Target: Charm++ v8.0.0 and Charm# grammar v0.1.
+Status: 2026-10-28. Target: Charm++ v8.0.0 and Charm# grammar v0.1.
 
 For the **versioned, construct-by-construct comparison** against the
 actual Charm++ `.ci` parser, see the
@@ -12,6 +12,7 @@ This page summarizes current implementation and its boundaries.
 | Charm# construct | Lowering | Evidence / restriction |
 | --- | --- | --- |
 | `chare`, `mainchare` | `chare`/`mainchare` in `.ci`; `CBase_` C++ classes | Explicit or implicit scalar `chare Main` mainchare; one per input; executable tests. |
+| `template<typename T> chare Worker` | Templated `.ci` chare + `CBase_Worker<T>` C++ inheritance | One type parameter; uninstantiated declaration compilation on Charm++ v8.0.0; registration/runtime deferred. |
 | `group`, `nodegroup`, `array [ND] chare` | Parallel types in `.ci` | 1D/2D array and group/nodegroup executable tests; other positive dimension spellings parsed but untested. |
 | `entry:` | Public C++ method + `.ci entry` | Simple constructors, void methods, declarations/inline bodies, and initializer lists on entry constructor definitions; parameter text copied without marshalling proof. |
 | `[[charm::threaded]]`, `[[charm::sync]]`, `[[charm::reductiontarget]]`, `[[charm::notrace]]`, `[[charm::appwork]]`, `[[charm::nokeep]]`, `[[charm::exclusive]]`, `[[charm::inline]]`, `[[charm::local]]` | `[threaded]`, `[sync]`, `[reductiontarget]` | Runtime threaded test, synchronous message-pointer interface, reduction benchmark, instrumentation, ownership/exclusion, and direct-call integration. |
@@ -41,7 +42,7 @@ This page summarizes current implementation and its boundaries.
 - **Inheritance:** External/later-defined bases, multiple parallel bases,
   non-chare parallel inheritance and complex base specifiers are deferred.
 - **Interface constructs:** `initnode`, `initproc`, `PUPable`,
-  `extern module`, `include`, template entities, `.ci` namespaces,
+  `extern module`, `include`, general template entities (beyond scalar chare declarations), `.ci` namespaces,
   chare attributes and module dependency tracking lack native Charm# lowering.
 - **Source/build model:** One module per input, no dependency discovery,
   conditional parallel declarations rejected, and no generated `#line`
