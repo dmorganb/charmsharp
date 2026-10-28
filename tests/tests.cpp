@@ -122,8 +122,12 @@ entry:
 };
 )SRC", "TemplateReg");
     contains(generated.interface_source, "template<typename T>");
-    contains(generated.interface_source, "chare Worker<int>;");
+    contains(generated.interface_source, "extern module TemplateReg_specializations;");
+    contains(generated.registration_interface_source, "chare Worker<int>;");
+    contains(generated.registration_interface_source, "extern module TemplateReg;");
     contains(generated.cpp_source, "CBase_Worker<T>");
+    contains(generated.cpp_source, "#include \"TemplateReg_specializations.decl.h\"");
+    contains(generated.cpp_source, "#define CK_TEMPLATES_ONLY");
     ++checks;
     if (generated.cpp_source.find("template chare Worker<int>;") != std::string::npos)
         throw std::runtime_error("registration syntax leaked into generated C++");
