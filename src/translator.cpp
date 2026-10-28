@@ -748,7 +748,8 @@ private:
                                                               tokens_[begin + 5].end - tokens_[begin + 5].begin));
             if (attribute != "threaded" && attribute != "sync" &&
                 attribute != "reductiontarget" && attribute != "notrace" &&
-                attribute != "appwork")
+                attribute != "appwork" && attribute != "nokeep" &&
+                attribute != "exclusive")
                 fail(begin + 5, "unsupported Charm++ entry attribute");
             if (std::find(attributes.begin(), attributes.end(), attribute) != attributes.end())
                 fail(begin, "duplicate Charm++ entry attribute");
@@ -762,6 +763,9 @@ private:
         const bool threaded = std::find(attributes.begin(), attributes.end(), "threaded") != attributes.end();
         const bool sync = std::find(attributes.begin(), attributes.end(), "sync") != attributes.end();
         if (threaded && sync) fail(entry_start, "threaded and sync cannot be combined");
+        if (std::find(attributes.begin(), attributes.end(), "exclusive") != attributes.end() &&
+            chare.kind != "nodegroup")
+            fail(entry_start, "exclusive entry attribute requires a nodegroup");
         const bool reductiontarget = std::find(attributes.begin(), attributes.end(), "reductiontarget") != attributes.end();
         if (reductiontarget && (threaded || sync))
             fail(entry_start, "reductiontarget cannot be combined with threaded or sync");
