@@ -1,10 +1,10 @@
 // A local entry returns a C++ value. Inline entries invoke directly on
 // the same PE and fall back to normal delivery for remote recipients.
 group Service {
-    CProxy_Main parent;
+    CkCallback callback;
 entry:
-    Service(CProxy_Main p) : parent(p) {
-        if (CkMyPe() == 0) parent.ready();
+    Service(CkCallback cb) : callback(cb) {
+        if (CkMyPe() == 0) callback.send();
     }
     [[charm::local]] int twice(int value) {
         return value * 2;
@@ -20,7 +20,7 @@ mainchare Main {
 entry:
     Main(CkArgMsg* msg) {
         delete msg;
-        service = CProxy_Service::ckNew(thisProxy);
+        service = CProxy_Service::ckNew(CkCallback(CkIndex_Main::ready(), thisProxy));
     }
     void ready() {
         int answer = service.ckLocalBranch()->twice(21);
