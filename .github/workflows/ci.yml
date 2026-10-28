@@ -116,6 +116,11 @@ jobs:
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
           make charm-implicit-main
 
+      - name: Compile and execute tracing and appwork entry attributes
+        run: |
+          export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
+          make charm-instrumentation-attributes
+
       - name: Build and execute group/nodegroup/array example
         run: |
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"

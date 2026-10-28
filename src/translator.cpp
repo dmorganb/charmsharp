@@ -737,16 +737,18 @@ private:
         std::vector<detail::SourceRange> attribute_ranges;
         const auto entry_start = begin;
         while (is(begin, "[") && is(begin + 1, "[")) {
-            // [[charm::threaded]], [[charm::sync]] and [[charm::reductiontarget]] map to .ci
+            // Supported [[charm::attribute]] markers map to .ci
             // attributes; remove them from the generated ordinary C++ class.
             if (begin + 7 >= end || !is(begin + 2, "charm") ||
                 !is(begin + 3, ":") || !is(begin + 4, ":") ||
                 tokens_[begin + 5].kind != Kind::Identifier ||
                 !is(begin + 6, "]") || !is(begin + 7, "]"))
-                fail(begin, "expected [[charm::threaded]], [[charm::sync]] or [[charm::reductiontarget]]");
+                fail(begin, "expected [[charm::attribute]]");
             const auto attribute = std::string(source_.substr(tokens_[begin + 5].begin,
                                                               tokens_[begin + 5].end - tokens_[begin + 5].begin));
-            if (attribute != "threaded" && attribute != "sync" && attribute != "reductiontarget")
+            if (attribute != "threaded" && attribute != "sync" &&
+                attribute != "reductiontarget" && attribute != "notrace" &&
+                attribute != "appwork")
                 fail(begin + 5, "unsupported Charm++ entry attribute");
             if (std::find(attributes.begin(), attributes.end(), attribute) != attributes.end())
                 fail(begin, "duplicate Charm++ entry attribute");
@@ -763,6 +765,14 @@ private:
         const bool reductiontarget = std::find(attributes.begin(), attributes.end(), "reductiontarget") != attributes.end();
         if (reductiontarget && (threaded || sync))
             fail(entry_start, "reductiontarget cannot be combined with threaded or sync");
+        // Phase 6.2a permits the two independent instrumentation markers
+        // together; combinations with scheduling/ownership attributes require
+        // separate Charmxi-backed compatibility tests.
+        if (attributes.size() > 1 &&
+            !(attributes.size() == 2 &&
+              std::find(attributes.begin(), attributes.end(), "notrace") != attributes.end() &&
+              std::find(attributes.begin(), attributes.end(), "appwork") != attributes.end()))
+            fail(entry_start, "unsupported Charm++ entry attribute combination");
 
         std::size_t open = begin;
         while (open < end && !is(open, "(")) {

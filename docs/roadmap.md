@@ -28,7 +28,7 @@ unsupported entry attributes, return types, and remaining declaration features.
 | 5.4 | Complete | Port Prefix Sum, verify every expected prefix with varying PEs and message arrival orders |
 | 5.5 | Complete (restricted subset) | Extend to `overlap`, `case`, `while`, `forall`, and lifetime diagnostics |
 | 6.1 | Complete (restricted convention) | Infer scalar `chare Main` as `mainchare`; preserve explicit declarations and diagnose conflicting mains; executable Charm++ test |
-| 6.2 | Planned (research first) | Expand `[[charm::...]]` entries: `notrace`, `appwork`, `nokeep`, `exclusive`, `inline`, `local`; document Charm++ v8.0.0 legality and runtime semantics before implementation |
+| 6.2 | In progress (6.2a instrumentation) | Expand `[[charm::...]]` entries: `notrace`, `appwork`, `nokeep`, `exclusive`, `inline`, `local`; document Charm++ v8.0.0 legality and runtime semantics before implementation |
 | 6.3 | Design gate | C++-style chare templates, `.ci` template metadata and `CBase_Name<T>`; conservative concrete specialization discovery, explicit registration fallback, duplicate handling, cross-TU limitations; implement only after design review |
 | Later | Planned | Variable-size messages, richer entries, multi-file/module integration, source mapping |
 
@@ -231,3 +231,13 @@ see [SDAG variable lifetime](sdag-variable-lifetime.md).
   registration as a fallback. Do not implement a general C++ instantiator.
 - Document dependent template arguments and cross-translation-unit limits.
   Require an executable Charm++ v8.0.0 template fixture before release.
+
+### 6.2a — Instrumentation attributes
+
+- Support `[[charm::notrace]]`, `[[charm::appwork]]`, and their pair on
+  non-constructor entry methods, emitting `.ci` `[notrace]`, `[appwork]`,
+  or `[notrace, appwork]` and preserving ordinary C++ implementations.
+- Test accepted/rejected attribute syntax and pinned Charm++ v8.0.0
+  compile/run behavior. This is metadata only: Charm# adds no instrumentation.
+- Document pending ownership and scheduling semantics separately in
+  [entry attribute compatibility](entry-attribute-semantics.md).

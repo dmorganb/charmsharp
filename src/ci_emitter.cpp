@@ -26,8 +26,14 @@ std::string signature(std::string_view source, const EntryDeclaration& entry) {
     if (entry.is_implicit)
         return "void " + entry.name + entry.parameter_list;
     std::string result;
-    for (const auto& attribute : entry.attributes)
-        result += "[" + attribute + "] ";
+    if (!entry.attributes.empty()) {
+        result += "[";
+        for (std::size_t i = 0; i < entry.attributes.size(); ++i) {
+            if (i != 0) result += ", ";
+            result += entry.attributes[i];
+        }
+        result += "] ";
+    }
     result += trim(slice(source, entry.method_signature));
     return result;
 }
