@@ -27,6 +27,9 @@ unsupported entry attributes, return types, and remaining declaration features.
 | 5.3 | Complete (if/for/ref subset) | SDAG `if`, `for`, reference-matched `when` and asynchronous behavior tests |
 | 5.4 | Complete | Port Prefix Sum, verify every expected prefix with varying PEs and message arrival orders |
 | 5.5 | Complete (restricted subset) | Extend to `overlap`, `case`, `while`, `forall`, and lifetime diagnostics |
+| 6.1 | In progress | Infer scalar `chare Main` as `mainchare`; preserve explicit declarations and diagnose conflicting mains; executable Charm++ test |
+| 6.2 | Planned (research first) | Expand `[[charm::...]]` entries: `notrace`, `appwork`, `nokeep`, `exclusive`, `inline`, `local`; document Charm++ v8.0.0 legality and runtime semantics before implementation |
+| 6.3 | Design gate | C++-style chare templates, `.ci` template metadata and `CBase_Name<T>`; conservative concrete specialization discovery, explicit registration fallback, duplicate handling, cross-TU limitations; implement only after design review |
 | Later | Planned | Variable-size messages, richer entries, multi-file/module integration, source mapping |
 
 ## Fixed-size message slice (phase 3.1)
@@ -187,3 +190,44 @@ see [SDAG variable lifetime](sdag-variable-lifetime.md).
 - The pinned Charm++ integration test compares an independently handwritten
   `.ci` implementation and Charm# output in both queued and late-arrival
   scenarios. It covers all four constructs in one executable.
+
+## Phase 6: Remaining language surface
+
+### 6.1 — Implicit mainchare convention
+
+- A top-level scalar `chare Main` is classified as `mainchare Main` in the
+  semantic model, generating a `mainmodule` and the conventional `.ci` entry.
+  Its generated C++ remains `class Main : public CBase_Main`.
+- An explicit `mainchare Name` remains supported. A different explicit
+  mainchare alongside `chare Main` is diagnosed regardless of source order.
+- The rule is exact and case-sensitive; it does **not** apply to `group Main`,
+  `nodegroup Main`, or `array [ND] chare Main`. Translation units without
+  any mainchare still generate `module` rather than `mainmodule`.
+- Acceptance: parser/model tests and executable Charm++ v8.0.0 integration,
+  while the existing explicitly declared mainchare program remains green.
+
+### 6.2 — Additional entry attributes (research before implementation)
+
+1. Cross-check `notrace`, `appwork`, `nokeep`, `exclusive`, `inline`,
+   and `local` against pinned Charm++ v8.0.0 parser behavior, legal entry
+   signatures, parallel-type applicability, and meaningful combinations.
+2. Record effects and restrictions for tracing, instrumentation, message
+   ownership, scheduling/exclusion and local invocation. Avoid guessing
+   semantics from attribute names or silently normalizing combinations.
+3. Implement one independently testable attribute slice at a time using the
+   existing `[[charm::attribute]]` syntax; emit corresponding `.ci` metadata,
+   remove the attribute from C++, and preserve the C++ method body.
+4. Add accepted/rejected parser fixtures, matching Charmxi checks, and runtime
+   tests for attributes where behavior changes; update grammar and audit.
+
+### 6.3 — Chare templates (design review required)
+
+- Design C++-style `template<typename T> chare Worker { ... };` syntax and
+  compatible Charm++ `.ci` template declarations before implementation.
+- Determine correct generated `CBase_Worker<T>` and proxy names, includes,
+  instantiation and registration placement, and compatibility with SDAG.
+- Discover straightforward concrete proxy uses such as `CProxy_Worker<int>`
+  only where unambiguous; deduplicate registrations and provide explicit
+  registration as a fallback. Do not implement a general C++ instantiator.
+- Document dependent template arguments and cross-translation-unit limits.
+  Require an executable Charm++ v8.0.0 template fixture before release.
