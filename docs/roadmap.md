@@ -268,12 +268,12 @@ see [SDAG variable lifetime](sdag-variable-lifetime.md).
 
 ### 6.3.1 — Templated scalar chare declarations
 
-- Parse a single ordinary C++ type template parameter (\`typename T\` or
-  \`class T\`) immediately preceding a scalar \`chare\` declaration.
+- Parse a single ordinary C++ type template parameter (`typename T` or
+  `class T`) immediately preceding a scalar `chare` declaration.
 - Preserve the original C++ template declaration; emit corresponding templated
-  \`.ci\` metadata and derive from \`CBase_Name<T>\`.
+  `.ci` metadata and derive from `CBase_Name<T>`.
 - This slice validates uninstantiated declarations with Charm++ v8.0.0.
-  Concrete specialization registrations, \`CK_TEMPLATES_ONLY\` header handling
+  Concrete specialization registrations, `CK_TEMPLATES_ONLY` header handling
   and executable template instantiations belong to 6.3.2–6.3.4.
 - Multi-parameter templates, defaults, templated groups/arrays/nodegroups,
   dependent arguments and cross-TU specialization discovery remain deferred.
