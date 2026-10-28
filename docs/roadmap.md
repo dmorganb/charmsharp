@@ -290,3 +290,21 @@ see [SDAG variable lifetime](sdag-variable-lifetime.md).
   definitions under `CK_TEMPLATES_ONLY` before registration definitions.
 - Validate a runnable specialization against Charm++ v8.0.0, including
   compile, link, runtime registration and successful proxy construction.
+
+### 6.3.3 — Automatic concrete specialization discovery
+
+- Infer a Charm++ specialization registration from tokenized source uses of
+  `CProxy_Worker<int>` (and other supported concrete built-in C++ type
+  arguments) when `Worker` is a scalar template chare declared in this unit.
+- Reuse the 6.3.2 `<module>_specializations.ci` emission, generated header
+  inclusion and `CK_TEMPLATES_ONLY` integration. Do not alter proxy usages
+  in the generated C++.
+- Deduplicate inferred occurrences and explicit `template chare Worker<T>;`
+  registrations regardless of whitespace; explicit registrations retain their
+  original source spelling.
+- Intentionally do **not** infer dependent arguments (`T`), nested arguments
+  (`std::vector<int>`), or arbitrary user-defined names in this slice. These
+  require explicit registrations and/or later semantic type resolution.
+- Detection is local to a single translation unit and excludes comments,
+  string literals and preprocessor directives. Cross-unit proxy uses are not
+  discovered. Validate compiled executable behavior against Charm++ v8.0.0.
