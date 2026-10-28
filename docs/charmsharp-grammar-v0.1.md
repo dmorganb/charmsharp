@@ -327,3 +327,22 @@ Only the exact scalar chare form triggers inference: `group Main`,
 `nodegroup Main` and `array [1D] chare Main` remain their original kinds.
 A module without an inferred or explicit mainchare is valid and emits the
 ordinary `module` construct.
+
+
+## 9. Phase 6.2 attribute extension
+
+The entry-method attribute production remains the ordinary C++ attribute
+form `[[charm::name]]`. Implemented instrumentation names additionally include
+`notrace` and `appwork`, alone or together as separate C++ annotations:
+
+```cpp
+[[charm::notrace]] [[charm::appwork]] void process(int value);
+```
+
+The translator emits one Charm++ entry attribute list,
+`entry [notrace, appwork] void process(int value);`, and removes the Charm#
+annotations from the generated C++ declaration/implementation. No new
+instrumentation semantics are added by the language. The more specialized
+`nokeep`, `exclusive`, `inline`, and `local` require pinned-toolchain and
+runtime-ownership/scheduling validation before acceptance; see
+[entry attribute semantics](entry-attribute-semantics.md).
