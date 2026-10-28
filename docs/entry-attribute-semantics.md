@@ -20,7 +20,7 @@ combination must additionally compile under the pinned Charm++ v8.0.0 CI.
 - Existing `threaded` + `sync` and `reductiontarget` with either remain
   prohibited by the current Charm# subset.
 - Phase 6.2a/b allow standalone `notrace`, `appwork`, `nokeep`, and
-  `exclusive`, plus the pair `notrace` + `appwork`. The pair. The pair emits a single conventional `.ci` attribute list,
+  `exclusive`, plus the pair `notrace` + `appwork`. The pair emits a single conventional `.ci` attribute list,
   `[notrace, appwork]`; CI checks actual Charmxi acceptance. Repeated markers
   are rejected.
 - Other combinations are **currently unsupported by Charm#**, which is not
