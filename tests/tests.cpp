@@ -138,6 +138,60 @@ entry:
             "duplicate explicit chare template");
 }
 
+void inferred_chare_template_registration() {
+    const auto source = R"SRC(
+template<typename T> chare Worker {
+entry:
+    Worker(T x) {}
+};
+chare Main {
+entry:
+    Main(CkArgMsg* msg) {
+        delete msg;
+        CProxy_Worker<int>::ckNew(1);
+        CProxy_Worker< int >::ckNew(2);
+        CProxy_Worker<double>::ckNew(3);
+        const char* text = "CProxy_Worker<float>";
+        // CProxy_Worker<long> should not be registered.
+    }
+};
+)SRC";
+    const auto generated = charmsharp::translate(source, "AutoReg");
+    contains(generated.interface_source, "extern module AutoReg_specializations;");
+    contains(generated.registration_interface_source, "chare Worker<int>;");
+    contains(generated.registration_interface_source, "chare Worker<double>;");
+    ++checks;
+    if (generated.registration_interface_source.find("chare Worker<int>;",
+            generated.registration_interface_source.find("chare Worker<int>;") + 1) != std::string::npos)
+        throw std::runtime_error("duplicate inferred specialization");
+    ++checks;
+    if (generated.registration_interface_source.find("Worker<float>") != std::string::npos ||
+        generated.registration_interface_source.find("Worker<long>") != std::string::npos)
+        throw std::runtime_error("inferred registration from string or comment");
+    contains(generated.cpp_source, "CProxy_Worker<int>::ckNew(1);");
+    contains(generated.cpp_source, "#define CK_TEMPLATES_ONLY");
+
+    const auto mixed = charmsharp::translate(R"SRC(
+template<typename T> chare Worker { entry: Worker(T x) {} };
+template chare Worker< int >;
+chare Main { entry: Main(CkArgMsg* msg) {
+    delete msg;
+    CProxy_Worker<int>::ckNew(4);
+    CProxy_Worker<T>::ckNew(5);
+    CProxy_Worker<std::vector<int>>::ckNew({});
+} };
+)SRC", "MixedReg");
+    contains(mixed.registration_interface_source, "chare Worker< int >;");
+    ++checks;
+    if (mixed.registration_interface_source.find("chare Worker<int>;") != std::string::npos ||
+        mixed.registration_interface_source.find("Worker<T>") != std::string::npos ||
+        mixed.registration_interface_source.find("Worker<std") != std::string::npos)
+        throw std::runtime_error("duplicate or dependent specialization inferred");
+    const auto no_use = charmsharp::translate(
+        "template<typename T> chare Worker { entry: Worker(T x) {} };", "UnusedReg");
+    equal(no_use.registration_interface_source, "");
+}
+
 void preserves_ordinary_cpp_and_literal_braces() {
     const auto output = charmsharp::translate(R"SRC(
 constexpr auto punctuation = R"raw({}; entry: chare when "})raw";
@@ -1223,6 +1277,7 @@ int main() {
     golden_counter();
     chare_template_declaration();
     explicit_chare_template_registration();
+    inferred_chare_template_registration();
     preserves_ordinary_cpp_and_literal_braces();
     preserves_numeric_literals_and_logical_lines();
     multiple_sections_and_definitions();

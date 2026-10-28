@@ -139,6 +139,7 @@ public:
             analyze_entry_arrays(i + 4, close);
             i = close;
         }
+        discover_template_registrations();
         if (chares_.empty() && messages_.empty() && readonly_.empty())
             throw Diagnostic("expected a top-level Charm# declaration", 0);
 
@@ -413,12 +414,70 @@ private:
             tokens_[open].begin, tokens_[close].end - tokens_[open].begin));
         if (std::any_of(semantic_.template_registrations.begin(),
                 semantic_.template_registrations.end(), [&](const auto& previous) {
-                    return previous.name == name && previous.arguments == args;
+                    return previous.name == name && registration_key(previous.arguments) == registration_key(args);
                 }))
             fail(start, "duplicate explicit chare template specialization");
         semantic_.template_registrations.push_back({
             name, args, {tokens_[start].begin, tokens_[close + 1].end}});
         return close + 2;
+    }
+
+    // Registration identity ignores formatting; Charmxi only needs one
+    // registration for each concrete specialization.
+    static std::string registration_key(std::string_view arguments) {
+        std::string key;
+        for (const auto& token : detail::tokenize(arguments)) {
+            if (token.kind == Kind::Directive) continue;
+            const auto part = arguments.substr(token.begin, token.end - token.begin);
+            key += std::to_string(part.size()) + ":" + std::string(part);
+        }
+        return key;
+    }
+
+    void discover_template_registrations() {
+        // This deliberately is not C++ template argument deduction. Only a
+        // known scalar chare proxy with one concrete built-in type qualifies.
+        // The tokenizer excludes comments, strings, and raw-string contents.
+        const std::vector<std::string> builtin_types = {
+            "bool", "char", "signed char", "unsigned char", "short",
+            "short int", "unsigned short", "unsigned short int",
+            "int", "signed", "signed int", "unsigned", "unsigned int",
+            "long", "long int", "unsigned long", "unsigned long int",
+            "long long", "long long int", "unsigned long long",
+            "unsigned long long int", "float", "double", "long double"
+        };
+        for (std::size_t i = 0; i + 2 < tokens_.size(); ++i) {
+            if (tokens_[i].kind != Kind::Identifier || !is(i + 1, "<")) continue;
+            const auto proxy = token_text(i);
+            constexpr std::string_view prefix = "CProxy_";
+            if (proxy.compare(0, prefix.size(), prefix) != 0) continue;
+            const auto name = proxy.substr(prefix.size());
+            const auto declaration = std::find_if(semantic_.parallel_types.begin(),
+                semantic_.parallel_types.end(), [&](const auto& entry) {
+                    return entry.name == name && entry.kind == detail::ParallelKind::Chare &&
+                           !entry.template_declaration.empty();
+                });
+            if (declaration == semantic_.parallel_types.end()) continue;
+            const auto close = matching(i + 1, "<", ">", tokens_.size());
+            std::string type;
+            bool simple = close > i + 2;
+            for (auto j = i + 2; j < close; ++j) {
+                if (tokens_[j].kind != Kind::Identifier) { simple = false; break; }
+                if (!type.empty()) type += " ";
+                type += token_text(j);
+            }
+            if (!simple || std::find(builtin_types.begin(), builtin_types.end(), type) ==
+                               builtin_types.end()) continue;
+            const auto args = "<" + type + ">";
+            const auto key = registration_key(args);
+            const bool exists = std::any_of(semantic_.template_registrations.begin(),
+                semantic_.template_registrations.end(), [&](const auto& existing) {
+                    return existing.name == name && registration_key(existing.arguments) == key;
+                });
+            if (!exists)
+                semantic_.template_registrations.push_back({name, args, {}});
+            i = close;
+        }
     }
 
     std::size_t parse_chare(std::size_t keyword, std::size_t template_keyword = 0,

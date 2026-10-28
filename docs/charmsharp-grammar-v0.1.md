@@ -405,3 +405,14 @@ The first validated form is an earlier-declared scalar chare template with
 one concrete type argument. Duplicate directives and references to an
 undeclared template are rejected; cross-file registrations and dependent
 template arguments are deferred.
+
+
+### Implemented template registration inference (Phase 6.3.3)
+
+A source use of a proxy for a scalar template chare declared in the same
+translation unit, for example `CProxy_Worker<int>::ckNew(42)`, implicitly
+registers `Worker<int>` in the generated specialization interface.
+Multiple uses and an explicit `template chare Worker<int>;` are deduplicated.
+This is a translation convention, not additional source grammar. The first
+implementation recognizes concrete built-in C++ type arguments only; dependent,
+nested and cross-translation-unit uses require explicit registration.
