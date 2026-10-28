@@ -81,10 +81,13 @@ std::string emit_cpp(std::string_view source, const SemanticModel& model) {
     cpp.insert(0, "#include \"" + model.module_name + ".decl.h\"\n");
     if (cpp.empty() || cpp.back() != '\n') cpp += '\n';
     if (!model.template_registrations.empty()) {
+        cpp += "#include \"" + model.module_name + "_specializations.decl.h\"\n";
         cpp += "#define CK_TEMPLATES_ONLY\n#include \"" + model.module_name +
                ".def.h\"\n#undef CK_TEMPLATES_ONLY\n";
     }
     cpp += "#include \"" + model.module_name + ".def.h\"\n";
+    if (!model.template_registrations.empty())
+        cpp += "#include \"" + model.module_name + "_specializations.def.h\"\n";
     return cpp;
 }
 
