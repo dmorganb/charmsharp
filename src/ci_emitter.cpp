@@ -123,6 +123,8 @@ std::string emit_ci(std::string_view source, const SemanticModel& model) {
     for (const auto& readonly : model.readonly_variables)
         ci += "    readonly " + std::string(trim(slice(source, readonly.declarator))) + ";\n";
     for (const auto& chare : model.parallel_types) {
+        if (!chare.template_declaration.empty())
+            ci += "    " + chare.template_declaration + "\n";
         ci += "    " + type_kind(chare) + " " + chare.name;
         if (!chare.parallel_base.empty()) ci += " : " + chare.parallel_base;
         ci += " {\n";
