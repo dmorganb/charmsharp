@@ -344,6 +344,7 @@ The translator emits one Charm++ entry attribute list,
 annotations from the generated C++ declaration/implementation. No new
 instrumentation semantics are added by the language. Additionally, standalone `nokeep` and nodegroup-only `exclusive` are
 supported in Phase 6.2b with their normal Charm++ ownership/exclusion meaning.
-The remaining `inline` and `local` require pinned-toolchain and
-runtime-ownership/scheduling validation before acceptance; see
+Standalone `inline` and group/array-only `local` are supported in Phase
+6.2c; simple non-void local returns are permitted. Other attribute combinations
+and complex dependent return types remain outside the tested subset; see
 [entry attribute semantics](entry-attribute-semantics.md).

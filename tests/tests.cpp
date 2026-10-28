@@ -335,6 +335,36 @@ entry:
             "unsupported Charm++ entry attribute combination");
 }
 
+void direct_call_entry_attributes() {
+    const auto output = charmsharp::translate(R"SRC(group Service {
+entry:
+    Service() {}
+    [[charm::local]] int twice(int value) { return 2 * value; }
+    [[charm::inline]] void ping(int x) { CkPrintf("%d", x); }
+};
+array [1D] chare Cell {
+entry:
+    [[charm::local]] int index() { return thisIndex; }
+};)SRC", "Direct");
+    contains(output.interface_source, "entry [local] int twice(int value);");
+    contains(output.interface_source, "entry [inline] void ping(int x);");
+    contains(output.interface_source, "entry [local] int index();");
+    contains(output.cpp_source, "int twice(int value) { return 2 * value; }");
+    ++checks;
+    if (output.cpp_source.find("[[charm::") != std::string::npos)
+        throw std::runtime_error("direct-call attributes leaked into C++ output");
+    rejects("chare A { entry: [[charm::local]] int f(); };",
+            "local entry attribute requires a group or chare array");
+    rejects("mainchare A { entry: [[charm::local]] void f(); };",
+            "local entry attribute requires a group or chare array");
+    rejects("nodegroup A { entry: [[charm::local]] void f(); };",
+            "local entry attribute requires a group or chare array");
+    rejects("chare A { entry: [[charm::inline]] int f(); };",
+            "entry methods must return void");
+    rejects("group A { entry: [[charm::local]] [[charm::inline]] int f(); };",
+            "unsupported Charm++ entry attribute combination");
+}
+
 void reduction_target_entries() {
     const auto output = charmsharp::translate(R"SRC(mainchare Main {
 entry:
@@ -1144,6 +1174,7 @@ int main() {
     attributed_entries();
     instrumentation_entry_attributes();
     ownership_and_exclusive_entry_attributes();
+    direct_call_entry_attributes();
     reduction_target_entries();
     entry_constructor_initializers();
     marshalled_entry_arrays();

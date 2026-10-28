@@ -749,7 +749,8 @@ private:
             if (attribute != "threaded" && attribute != "sync" &&
                 attribute != "reductiontarget" && attribute != "notrace" &&
                 attribute != "appwork" && attribute != "nokeep" &&
-                attribute != "exclusive")
+                attribute != "exclusive" &&
+                attribute != "inline" && attribute != "local")
                 fail(begin + 5, "unsupported Charm++ entry attribute");
             if (std::find(attributes.begin(), attributes.end(), attribute) != attributes.end())
                 fail(begin, "duplicate Charm++ entry attribute");
@@ -763,6 +764,9 @@ private:
         const bool threaded = std::find(attributes.begin(), attributes.end(), "threaded") != attributes.end();
         const bool sync = std::find(attributes.begin(), attributes.end(), "sync") != attributes.end();
         if (threaded && sync) fail(entry_start, "threaded and sync cannot be combined");
+        const bool local = std::find(attributes.begin(), attributes.end(), "local") != attributes.end();
+        if (local && chare.kind != "group" && chare.kind.rfind("array [", 0) != 0)
+            fail(entry_start, "local entry attribute requires a group or chare array");
         if (std::find(attributes.begin(), attributes.end(), "exclusive") != attributes.end() &&
             chare.kind != "nodegroup")
             fail(entry_start, "exclusive entry attribute requires a nodegroup");
@@ -794,9 +798,11 @@ private:
             if (!attributes.empty()) fail(entry_start, "entry constructors cannot have Charm++ entry attributes");
         } else if (!(open == begin + 2 && is(begin, "void"))) {
             // Charm++ synchronous entries can return a pointer to a message.
-            if (!(sync && open == begin + 3 &&
-                  tokens_[begin].kind == Kind::Identifier && is(begin + 1, "*")))
-                fail(begin, "entry methods must return void, or a message pointer with [[charm::sync]]");
+            if (!((sync && open == begin + 3 &&
+                   tokens_[begin].kind == Kind::Identifier && is(begin + 1, "*")) ||
+                  (local && (open == begin + 2 ||
+                   (open == begin + 3 && is(begin + 1, "*"))))))
+                fail(begin, "entry methods must return void, a sync message pointer, or a simple local return type");
         } else if (sync) {
             fail(begin, "sync entries must return a message pointer");
         }
