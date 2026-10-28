@@ -12,6 +12,7 @@ This page summarizes current implementation and its boundaries.
 | Charm# construct | Lowering | Evidence / restriction |
 | --- | --- | --- |
 | `chare`, `mainchare` | `chare`/`mainchare` in `.ci`; `CBase_` C++ classes | Explicit or implicit scalar `chare Main` mainchare; one per input; executable tests. |
+| `template chare Worker<int>;` | Supplemental `<module>_specializations.ci`, compiled with the primary `.ci` | Explicit concrete specialization; executable Charm++ v8.0.0 validation; multiple-TU discovery deferred. |
 | `template<typename T> chare Worker` | Templated `.ci` chare + `CBase_Worker<T>` C++ inheritance | One type parameter; uninstantiated declaration compilation on Charm++ v8.0.0; registration/runtime deferred. |
 | `group`, `nodegroup`, `array [ND] chare` | Parallel types in `.ci` | 1D/2D array and group/nodegroup executable tests; other positive dimension spellings parsed but untested. |
 | `entry:` | Public C++ method + `.ci entry` | Simple constructors, void methods, declarations/inline bodies, and initializer lists on entry constructor definitions; parameter text copied without marshalling proof. |
