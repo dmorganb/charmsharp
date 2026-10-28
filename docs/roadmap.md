@@ -308,3 +308,22 @@ see [SDAG variable lifetime](sdag-variable-lifetime.md).
 - Detection is local to a single translation unit and excludes comments,
   string literals and preprocessor directives. Cross-unit proxy uses are not
   discovered. Validate compiled executable behavior against Charm++ v8.0.0.
+
+
+### 6.3.4 — Template validation and hardening (in progress)
+
+- **6.3.4a/b:** Exercise multiple independent concrete registrations (initially
+  built-in `int` and `double`) for the same template chare, verify deduplication,
+  generated registration ordering, compile/link, and both runtime deliveries.
+  Keep executable output validation in pinned Charm++ v8.0.0 CI.
+- **Pinned-toolchain finding:** A templated entry signature referring to
+  `CProxy_Main` requires `Main` to appear first in the generated `.ci` module;
+  placing `Worker` first makes its generated `.decl.h` refer to an undeclared
+  proxy type. The executable fixture uses the supported declaration order.
+- **6.3.4c (next):** Investigate independent translation units, visibility of
+  template definitions and registrations, and the current one-module CLI design;
+  avoid assuming a proxy use in one unit can register a definition elsewhere.
+- **6.3.4d (next):** Check template inheritance and generated header ordering
+  against Charm++ v8.0.0. Expand only where semantics are confirmed.
+- **6.3.4e (next):** Audit language coverage and explicitly document remaining
+  user-defined/nested/dependent argument and multi-TU limits before closing phase.

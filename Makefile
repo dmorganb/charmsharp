@@ -5,7 +5,7 @@ CPPFLAGS += -Iinclude
 LIB_SOURCES = src/lexer.cpp src/translator.cpp src/sdag.cpp src/ci_emitter.cpp src/cpp_emitter.cpp
 HEADERS = src/lexer.hpp src/sdag.hpp src/semantic.hpp src/ci_emitter.hpp src/cpp_emitter.hpp include/charmsharp/translator.hpp
 
-.PHONY: all test charm-check charm-run charm-objects charm-threaded charm-message charm-readonly charm-inheritance charm-message-inheritance charm-parallel-inheritance charm-benchmark-primes charm-benchmark-reduction charm-ctor-initializers charm-benchmark-jacobi2d charm-marshalled-arrays charm-sdag-when charm-sdag-sequence charm-sdag-control charm-benchmark-prefix-sum charm-sdag-extended charm-implicit-main charm-instrumentation-attributes charm-ownership-exclusive charm-direct-call charm-template-declaration charm-template-registration charm-template-auto-registration clean
+.PHONY: all test charm-check charm-run charm-objects charm-threaded charm-message charm-readonly charm-inheritance charm-message-inheritance charm-parallel-inheritance charm-benchmark-primes charm-benchmark-reduction charm-ctor-initializers charm-benchmark-jacobi2d charm-marshalled-arrays charm-sdag-when charm-sdag-sequence charm-sdag-control charm-benchmark-prefix-sum charm-sdag-extended charm-implicit-main charm-instrumentation-attributes charm-ownership-exclusive charm-direct-call charm-template-declaration charm-template-registration charm-template-auto-registration charm-template-multi-specialization clean
 all: build/charmsharp
 
 build/charmsharp: src/main.cpp $(LIB_SOURCES) $(HEADERS)
@@ -98,6 +98,9 @@ charm-template-registration: build/charmsharp
 
 charm-template-auto-registration: build/charmsharp
 	sh tests/charm_run.sh ./build/charmsharp examples/TemplateAutoRegistration.csh TemplateAutoRegistration 'Template worker: 42'
+
+charm-template-multi-specialization: build/charmsharp
+	sh tests/charm_run.sh ./build/charmsharp examples/TemplateMultiSpecialization.csh TemplateMultiSpecialization 'Both template specializations completed'
 
 clean:
 	rm -f build/charmsharp build/tests

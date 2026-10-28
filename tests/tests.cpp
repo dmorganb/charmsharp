@@ -192,6 +192,31 @@ chare Main { entry: Main(CkArgMsg* msg) {
     equal(no_use.registration_interface_source, "");
 }
 
+void multiple_concrete_chare_template_registrations() {
+    const auto result = charmsharp::translate(R"SRC(
+template<typename T>
+chare Worker { entry: Worker(T value) {} };
+chare Main { entry: Main(CkArgMsg* msg) {
+    CProxy_Worker<int>::ckNew(42);
+    CProxy_Worker<double>::ckNew(3.5);
+    CProxy_Worker<int>::ckNew(7);
+} };
+)SRC", "MultiTemplate");
+    contains(result.registration_interface_source, "chare Worker<int>;");
+    contains(result.registration_interface_source, "chare Worker<double>;");
+    contains(result.interface_source, "extern module MultiTemplate_specializations;");
+    contains(result.cpp_source, "CProxy_Worker<double>::ckNew(3.5);");
+    ++checks;
+    const auto first = result.registration_interface_source.find("chare Worker<int>;");
+    if (result.registration_interface_source.find("chare Worker<int>;", first + 1) !=
+        std::string::npos)
+        throw std::runtime_error("duplicate specialization of same type");
+    ++checks;
+    if (result.registration_interface_source.find("chare Worker<int>;") >
+        result.registration_interface_source.find("chare Worker<double>;"))
+        throw std::runtime_error("specialization registration order changed");
+}
+
 void preserves_ordinary_cpp_and_literal_braces() {
     const auto output = charmsharp::translate(R"SRC(
 constexpr auto punctuation = R"raw({}; entry: chare when "})raw";
@@ -1278,6 +1303,7 @@ int main() {
     chare_template_declaration();
     explicit_chare_template_registration();
     inferred_chare_template_registration();
+    multiple_concrete_chare_template_registrations();
     preserves_ordinary_cpp_and_literal_braces();
     preserves_numeric_literals_and_logical_lines();
     multiple_sections_and_definitions();
