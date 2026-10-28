@@ -144,6 +144,8 @@ std::string emit_ci(std::string_view source, const SemanticModel& model) {
         }
         ci += "    };\n";
     }
+    for (const auto& registration : model.template_registrations)
+        ci += "    chare " + registration.name + registration.arguments + ";\n";
     ci += "};\n";
     return ci;
 }
