@@ -241,3 +241,14 @@ see [SDAG variable lifetime](sdag-variable-lifetime.md).
   compile/run behavior. This is metadata only: Charm# adds no instrumentation.
 - Document pending ownership and scheduling semantics separately in
   [entry attribute compatibility](entry-attribute-semantics.md).
+
+### 6.2b — Message ownership and nodegroup exclusion
+
+- Support standalone `[[charm::nokeep]]` on entry methods: the Charm++
+  runtime retains ownership of incoming messages. Do not delete, mutate or
+  retain the argument after the handler completes.
+- Support standalone `[[charm::exclusive]]` only on nodegroup entry methods;
+  this is node-local exclusion among similarly annotated entries, **not**
+  general exclusion against ordinary methods.
+- Keep additional combinations (including documented `threaded+nokeep`)
+  deferred until pinned toolchain and ownership checks are added.
