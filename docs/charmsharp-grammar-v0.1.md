@@ -342,7 +342,8 @@ form `[[charm::name]]`. Implemented instrumentation names additionally include
 The translator emits one Charm++ entry attribute list,
 `entry [notrace, appwork] void process(int value);`, and removes the Charm#
 annotations from the generated C++ declaration/implementation. No new
-instrumentation semantics are added by the language. The more specialized
-`nokeep`, `exclusive`, `inline`, and `local` require pinned-toolchain and
+instrumentation semantics are added by the language. Additionally, standalone `nokeep` and nodegroup-only `exclusive` are
+supported in Phase 6.2b with their normal Charm++ ownership/exclusion meaning.
+The remaining `inline` and `local` require pinned-toolchain and
 runtime-ownership/scheduling validation before acceptance; see
 [entry attribute semantics](entry-attribute-semantics.md).
