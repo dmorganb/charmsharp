@@ -316,6 +316,10 @@ see [SDAG variable lifetime](sdag-variable-lifetime.md).
   built-in `int` and `double`) for the same template chare, verify deduplication,
   generated registration ordering, compile/link, and both runtime deliveries.
   Keep executable output validation in pinned Charm++ v8.0.0 CI.
+- **Pinned-toolchain finding:** A templated entry signature referring to
+  `CProxy_Main` requires `Main` to appear first in the generated `.ci` module;
+  placing `Worker` first makes its generated `.decl.h` refer to an undeclared
+  proxy type. The executable fixture uses the supported declaration order.
 - **6.3.4c (next):** Investigate independent translation units, visibility of
   template definitions and registrations, and the current one-module CLI design;
   avoid assuming a proxy use in one unit can register a definition elsewhere.
