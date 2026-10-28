@@ -108,6 +108,36 @@ private:
     contains(ordinary.cpp_source, "template<typename T> struct Plain { T item; };");
 }
 
+void explicit_chare_template_registration() {
+    const auto generated = charmsharp::translate(R"SRC(
+template<typename T>
+chare Worker {
+entry:
+    Worker(T initial) {}
+};
+template chare Worker<int>;
+chare Main {
+entry:
+    Main(CkArgMsg* msg) { delete msg; CProxy_Worker<int>::ckNew(42); }
+};
+)SRC", "TemplateReg");
+    contains(generated.interface_source, "template<typename T>");
+    contains(generated.interface_source, "extern module TemplateReg_specializations;");
+    contains(generated.registration_interface_source, "chare Worker<int>;");
+    contains(generated.registration_interface_source, "extern module TemplateReg;");
+    contains(generated.cpp_source, "CBase_Worker<T>");
+    contains(generated.cpp_source, "#include \"TemplateReg_specializations.decl.h\"");
+    contains(generated.cpp_source, "#define CK_TEMPLATES_ONLY");
+    ++checks;
+    if (generated.cpp_source.find("template chare Worker<int>;") != std::string::npos)
+        throw std::runtime_error("registration syntax leaked into generated C++");
+    rejects("template chare Worker<int>;", "preceding template chare");
+    rejects("template<typename T> chare Worker {}; template chare Worker<T>;",
+            "concrete specialization");
+    rejects("template<typename T> chare Worker {}; template chare Worker<int>; template chare Worker<int>;",
+            "duplicate explicit chare template");
+}
+
 void preserves_ordinary_cpp_and_literal_braces() {
     const auto output = charmsharp::translate(R"SRC(
 constexpr auto punctuation = R"raw({}; entry: chare when "})raw";
@@ -1192,6 +1222,7 @@ void diagnostics() {
 int main() {
     golden_counter();
     chare_template_declaration();
+    explicit_chare_template_registration();
     preserves_ordinary_cpp_and_literal_braces();
     preserves_numeric_literals_and_logical_lines();
     multiple_sections_and_definitions();

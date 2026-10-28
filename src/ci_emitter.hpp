@@ -11,5 +11,6 @@ namespace charmsharp::detail {
 // No Charm# lexing, receive registration, or semantic checks happen here.
 [[nodiscard]] std::string emit_ci(std::string_view source,
                                   const SemanticModel& model);
+[[nodiscard]] std::string emit_registration_ci(const SemanticModel& model);
 
 } // namespace charmsharp::detail

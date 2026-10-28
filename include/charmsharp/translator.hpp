@@ -10,6 +10,7 @@ namespace charmsharp {
 struct Generated {
     std::string interface_source;
     std::string cpp_source;
+    std::string registration_interface_source; // Optional separate Charm++ module.
 };
 
 class Diagnostic : public std::runtime_error {

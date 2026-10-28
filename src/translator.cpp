@@ -94,6 +94,9 @@ public:
                 ++depth;
             } else if (is(i, "}")) {
                 if (depth != 0) --depth;
+            } else if (is(i, "template") && is(i + 1, "chare")) {
+                if (depth == 0 && conditional_depth == 0)
+                    i = parse_template_registration(i) - 1;
             } else if (is(i, "template") && is(i + 1, "<")) {
                 const auto close = matching(i + 1, "<", ">", tokens_.size());
                 if (is(close + 1, "chare")) {
@@ -147,7 +150,8 @@ public:
 
         auto cpp = detail::emit_cpp(source_, semantic_);
         auto ci = detail::emit_ci(source_, semantic_);
-        return {{std::move(ci), std::move(cpp)}, std::move(semantic_)};
+        auto registration_ci = detail::emit_registration_ci(semantic_);
+        return {{std::move(ci), std::move(cpp), std::move(registration_ci)}, std::move(semantic_)};
     }
 
 private:
@@ -375,6 +379,45 @@ private:
                                       {tokens_[keyword].begin, tokens_[close + 1].end},
                                       {tokens_[name].begin, tokens_[name].end},
                                       tokens_[brace].begin});
+        return close + 2;
+    }
+
+    std::size_t parse_template_registration(std::size_t start) {
+        // A Charm# registration declaration is intentionally distinct from
+        // the C++ explicit class-instantiation syntax.
+        const auto name_token = start + 2;
+        if (name_token >= tokens_.size() || tokens_[name_token].kind != Kind::Identifier)
+            return start + 1;
+        const auto name = token_text(name_token);
+        const auto declared = std::find_if(semantic_.parallel_types.begin(),
+            semantic_.parallel_types.end(), [&](const detail::ParallelDeclaration& declaration) {
+                return declaration.name == name && !declaration.template_declaration.empty();
+            });
+        if (declared == semantic_.parallel_types.end())
+            fail(name_token, "template chare registration requires a preceding template chare declaration");
+        const auto open = name_token + 1;
+        if (!is(open, "<"))
+            fail(open, "expected template specialization arguments in explicit registration");
+        const auto close = matching(open, "<", ">", tokens_.size());
+        if (!is(close + 1, ";"))
+            fail(close + 1, "expected ';' after explicit chare template registration");
+        if (close == open + 1)
+            fail(open, "template registration requires a concrete type argument");
+        const auto argument = std::string(trim(source_.substr(tokens_[open + 1].begin,
+            tokens_[close - 1].end - tokens_[open + 1].begin)));
+        const auto type_param = declared->template_arguments.substr(
+            1, declared->template_arguments.size() - 2);
+        if (argument == type_param)
+            fail(open, "template registration requires a concrete specialization");
+        const auto args = std::string(source_.substr(
+            tokens_[open].begin, tokens_[close].end - tokens_[open].begin));
+        if (std::any_of(semantic_.template_registrations.begin(),
+                semantic_.template_registrations.end(), [&](const auto& previous) {
+                    return previous.name == name && previous.arguments == args;
+                }))
+            fail(start, "duplicate explicit chare template specialization");
+        semantic_.template_registrations.push_back({
+            name, args, {tokens_[start].begin, tokens_[close + 1].end}});
         return close + 2;
     }
 

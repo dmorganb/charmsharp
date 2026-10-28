@@ -118,6 +118,8 @@ std::string type_kind(const ParallelDeclaration& declaration) {
 std::string emit_ci(std::string_view source, const SemanticModel& model) {
     std::string ci = std::string(model.is_mainmodule ? "mainmodule " : "module ") +
                      model.module_name + " {\n";
+    if (!model.template_registrations.empty())
+        ci += "    extern module " + model.module_name + "_specializations;\n";
     for (const auto& message : model.messages)
         ci += "    message " + message.name + ";\n";
     for (const auto& readonly : model.readonly_variables)
@@ -144,6 +146,16 @@ std::string emit_ci(std::string_view source, const SemanticModel& model) {
         }
         ci += "    };\n";
     }
+    ci += "};\n";
+    return ci;
+}
+
+std::string emit_registration_ci(const SemanticModel& model) {
+    if (model.template_registrations.empty()) return {};
+    std::string ci = "module " + model.module_name + "_specializations {\n";
+    ci += "    extern module " + model.module_name + ";\n";
+    for (const auto& registration : model.template_registrations)
+        ci += "    chare " + registration.name + registration.arguments + ";\n";
     ci += "};\n";
     return ci;
 }

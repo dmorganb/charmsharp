@@ -373,3 +373,35 @@ This is **declaration-only** coverage. Concrete specialization registration,
 subsequent Phase 6.3 slices. Multiple parameters, non-type template parameters,
 parameter packs and templated parallel kinds other than scalar `chare` are not
 supported by this slice.
+
+
+## 11. Phase 6.3.2 — Explicit chare template specialization registration
+
+The Charm# registration declaration has the form
+`template chare Worker<int>;`. Unlike the standard C++ declaration
+`template class Worker<int>;`, this does **not** explicitly instantiate a
+C++ class template. It requests the equivalent Charm++ interface registration:
+
+```cpp
+template<typename T>
+chare Worker {
+entry:
+    Worker(T initial);
+};
+
+template chare Worker<int>;
+```
+
+The registration directive is removed from generated C++ and emitted as
+`chare Worker<int>;` in a separate generated
+`<module>_specializations.ci`. The primary `.ci` imports that module;
+the specialization module imports the primary template module. The build
+driver compiles both `.ci` files. Generated C++ includes both declaration
+headers and uses `CK_TEMPLATES_ONLY` around the primary module's generated
+`.def.h` before ordinary module and specialization registration definitions.
+This separation preserves Charm++ v8.0.0 registration semantics.
+
+The first validated form is an earlier-declared scalar chare template with
+one concrete type argument. Duplicate directives and references to an
+undeclared template are rejected; cross-file registrations and dependent
+template arguments are deferred.

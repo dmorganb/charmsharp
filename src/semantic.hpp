@@ -88,10 +88,17 @@ struct ReadonlyDeclaration {
     SourceRange source;
 };
 
+struct TemplateRegistration {
+    std::string name;
+    std::string arguments; // Including angle brackets, e.g. <int>.
+    SourceRange source;
+};
+
 struct SemanticModel {
     std::string module_name;
     bool is_mainmodule = false;
     std::vector<ParallelDeclaration> parallel_types;
+    std::vector<TemplateRegistration> template_registrations;
     std::vector<MessageDeclaration> messages;
     std::vector<ReadonlyDeclaration> readonly_variables;
     std::vector<MarshalledArray> marshalled_arrays;
