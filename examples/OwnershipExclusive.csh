@@ -1,5 +1,6 @@
 // nokeep receives a runtime-owned message; handlers must not delete it.
 message Data {
+public:
     int value;
 };
 
