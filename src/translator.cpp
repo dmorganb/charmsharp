@@ -762,6 +762,9 @@ private:
         const bool threaded = std::find(attributes.begin(), attributes.end(), "threaded") != attributes.end();
         const bool sync = std::find(attributes.begin(), attributes.end(), "sync") != attributes.end();
         if (threaded && sync) fail(entry_start, "threaded and sync cannot be combined");
+        const bool reductiontarget = std::find(attributes.begin(), attributes.end(), "reductiontarget") != attributes.end();
+        if (reductiontarget && (threaded || sync))
+            fail(entry_start, "reductiontarget cannot be combined with threaded or sync");
         // Phase 6.2a permits the two independent instrumentation markers
         // together; combinations with scheduling/ownership attributes require
         // separate Charmxi-backed compatibility tests.
@@ -770,9 +773,6 @@ private:
               std::find(attributes.begin(), attributes.end(), "notrace") != attributes.end() &&
               std::find(attributes.begin(), attributes.end(), "appwork") != attributes.end()))
             fail(entry_start, "unsupported Charm++ entry attribute combination");
-        const bool reductiontarget = std::find(attributes.begin(), attributes.end(), "reductiontarget") != attributes.end();
-        if (reductiontarget && (threaded || sync))
-            fail(entry_start, "reductiontarget cannot be combined with threaded or sync");
 
         std::size_t open = begin;
         while (open < end && !is(open, "(")) {
