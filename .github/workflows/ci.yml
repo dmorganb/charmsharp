@@ -121,6 +121,11 @@ jobs:
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
           make charm-instrumentation-attributes
 
+      - name: Exercise runtime-owned nokeep messages and exclusive nodegroup entry
+        run: |
+          export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
+          make charm-ownership-exclusive
+
       - name: Build and execute group/nodegroup/array example
         run: |
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
