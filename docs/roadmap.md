@@ -252,3 +252,16 @@ see [SDAG variable lifetime](sdag-variable-lifetime.md).
   general exclusion against ordinary methods.
 - Keep additional combinations (including documented `threaded+nokeep`)
   deferred until pinned toolchain and ownership checks are added.
+
+### 6.2c — Inline/local entry invocation
+
+- Support standalone `[[charm::inline]]` on entries, preserving Charm++'s
+  local direct-call versus remote queued-delivery semantics.
+- Support standalone `[[charm::local]]` only on group/array entries. Calls
+  require a local recipient and may return a simple non-void C++ type;
+  non-local calls abort in the Charm++ runtime. The source-to-source translator
+  intentionally does not attempt to prove locality.
+- Reject untested multi-attribute combinations. Unit tests cover kind/signature
+  restrictions; pinned-toolchain integration exercises a same-PE `local`
+  return and `inline` dispatch. Broader non-PUPable parameter coverage is
+  deferred.

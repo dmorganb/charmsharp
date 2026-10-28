@@ -12,15 +12,15 @@ combination must additionally compile under the pinned Charm++ v8.0.0 CI.
 | `appwork` | Mark entry as application work for performance analysis. | Phase 6.2a: translated and compiled in CI. |
 | `nokeep` | Incoming message belongs to the runtime, not the callee. Do not delete, modify, or retain a borrowed message or a pointer into its storage after return. Broadcasts can share one buffer per process. Marshalled entries are already nokeep by default except threaded ones. | Phase 6.2b: translated and tested with a runtime-owned message in CI. |
 | `exclusive` | Only meaningful for nodegroups; node-local mutual exclusion among exclusive entries, **not** all nodegroup entries. | Phase 6.2b: nodegroup-only, compiled and exercised in CI; cross-PE mutual-exclusion stress tests remain future work. |
-| `inline` | If recipient is local to the current PE, invoke like a regular reentrant C++ call; otherwise ordinary remote delivery. Parameter forwarding differs from normal marshalling. | Planned delivery slice; local/remote runtime checks required. |
-| `local` | Group and chare-array entries only; guaranteed immediate call on local PE, aborts for non-local destination. Permits non-PUPable inputs and non-void returns. | Planned local slice; requires separate return-type analysis. |
+| `inline` | If recipient is local to the current PE, invoke like a regular reentrant C++ call; otherwise ordinary remote delivery. Parameter forwarding differs from normal marshalling. | Phase 6.2c: translated and exercised on a local PE; remote fallback requires a dedicated test. |
+| `local` | Group and chare-array entries only; guaranteed immediate call on local PE, aborts for non-local destination. Permits non-PUPable inputs and non-void returns. | Phase 6.2c: group/array only, with simple non-void returns; local group branch executable integration. Group proxies do not expose the local method directly in the tested toolchain: use `ckLocalBranch()`. |
 
 ## Combination policy
 
 - Existing `threaded` + `sync` and `reductiontarget` with either remain
   prohibited by the current Charm# subset.
-- Phase 6.2a/b allow standalone `notrace`, `appwork`, `nokeep`, and
-  `exclusive`, plus the pair `notrace` + `appwork`. The pair emits a single conventional `.ci` attribute list,
+- Phase 6.2a/b allow standalone `notrace`, `appwork`, `nokeep`, `exclusive`,
+  `inline`, and `local`, plus the pair `notrace` + `appwork`. The pair emits a single conventional `.ci` attribute list,
   `[notrace, appwork]`; CI checks actual Charmxi acceptance. Repeated markers
   are rejected.
 - Other combinations are **currently unsupported by Charm#**, which is not

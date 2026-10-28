@@ -126,6 +126,11 @@ jobs:
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
           make charm-ownership-exclusive
 
+      - name: Exercise inline and local direct-call entry methods
+        run: |
+          export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
+          make charm-direct-call
+
       - name: Build and execute group/nodegroup/array example
         run: |
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"

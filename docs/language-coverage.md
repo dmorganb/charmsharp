@@ -14,7 +14,7 @@ This page summarizes current implementation and its boundaries.
 | `chare`, `mainchare` | `chare`/`mainchare` in `.ci`; `CBase_` C++ classes | Explicit or implicit scalar `chare Main` mainchare; one per input; executable tests. |
 | `group`, `nodegroup`, `array [ND] chare` | Parallel types in `.ci` | 1D/2D array and group/nodegroup executable tests; other positive dimension spellings parsed but untested. |
 | `entry:` | Public C++ method + `.ci entry` | Simple constructors, void methods, declarations/inline bodies, and initializer lists on entry constructor definitions; parameter text copied without marshalling proof. |
-| `[[charm::threaded]]`, `[[charm::sync]]`, `[[charm::reductiontarget]]`, `[[charm::notrace]]`, `[[charm::appwork]]`, `[[charm::nokeep]]`, `[[charm::exclusive]]` | `[threaded]`, `[sync]`, `[reductiontarget]` | Runtime threaded test, synchronous message-pointer interface, reduction benchmark, instrumentation-attribute and message-ownership/nodegroup-exclusion integration. |
+| `[[charm::threaded]]`, `[[charm::sync]]`, `[[charm::reductiontarget]]`, `[[charm::notrace]]`, `[[charm::appwork]]`, `[[charm::nokeep]]`, `[[charm::exclusive]]`, `[[charm::inline]]`, `[[charm::local]]` | `[threaded]`, `[sync]`, `[reductiontarget]` | Runtime threaded test, synchronous message-pointer interface, reduction benchmark, instrumentation, ownership/exclusion, and direct-call integration. |
 | `message Name { ... };` | `message Name;` plus `CMessage_Name` class | Fixed-size runtime send/receive; no general serialization proof. |
 | `readonly T x;`, `readonly T a[N];` | Readonly interface plus global C++ storage | Scalar runtime test; decimal array syntax checked. |
 | Ordinary C++ base classes on chares/messages | Added after `CBase_Name` / `CMessage_Name` | Multiple earlier-defined local simple bases, access specifiers, runtime integration. |
@@ -26,7 +26,7 @@ This page summarizes current implementation and its boundaries.
 ## Significant remaining boundaries
 
 - **Entry attributes:** v8.0.0 recognizes many more than the supported
-  `threaded`, `sync`, `reductiontarget`, `notrace`, `appwork`, `nokeep`, and `exclusive`; see the audit and
+  `threaded`, `sync`, `reductiontarget`, `notrace`, `appwork`, `nokeep`, `exclusive`, `inline`, and `local`; see the audit and
   [compatibility notes](entry-attribute-semantics.md) for remaining semantics.
   `expedited` appears in current documentation but needs a pinned-version
   compatibility check.
