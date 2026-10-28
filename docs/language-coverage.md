@@ -60,3 +60,12 @@ observed benchmark blockers and runtime evidence.
 - [Detailed declaration audit and priorities](declaration-coverage-audit.md)
 - [Implementation roadmap](roadmap.md)
 - [Charm# grammar](charmsharp-grammar-v0.1.md)
+
+### Cross-translation-unit template use (Phase 6.3.4c)
+
+The translator discovers concrete proxy specializations only in its `.csh`
+input. When a separate `.cpp` uses a proxy, the `.csh` definition must contain
+an explicit `template chare Worker<int>;` registration. A pinned Charm++
+v8.0.0 test compiles the generated implementation and independent consumer as
+separate C++ translation units, then links and executes them. Multi-file
+registration inference and build orchestration remain unsupported.
