@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Run from the PR2 checkout, with the PR1 checkout supplied as argument.
+# Compare the baseline's tracked fixture corpus against the current compiler.
+# New language-extension examples are intentionally absent from the older
+# compiler baseline and must not be included in byte-equivalence checks.
 base_dir="${1:?usage: bash tests/compare_pr1_pr2_outputs.sh BASE_CHECKOUT}"
 base_dir="$(cd "$base_dir" && pwd)"
 pr_dir="$(pwd)"
@@ -28,7 +30,7 @@ while IFS= read -r -d '' source; do
   cpp_matches=$((cpp_matches+1))
   count=$((count+1))
   rm -rf "$case_dir"
-done < <(git ls-files -z -- 'examples/*.csh' 'benchmarks/**/*.csh' 'tests/**/*.csh')
+done < <(git -C "$base_dir" ls-files -z -- 'examples/*.csh' 'benchmarks/**/*.csh' 'tests/**/*.csh')
 
 if (( count == 0 )); then
   echo "ERROR: no Charm# fixtures found" >&2
