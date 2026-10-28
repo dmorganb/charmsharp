@@ -82,6 +82,32 @@ public:
 )CPP");
 }
 
+void chare_template_declaration() {
+    constexpr std::string_view source = R"SRC(template<typename T>
+chare Worker {
+entry:
+    Worker(T initial) : value(initial) {}
+    void process(T next) { value = next; }
+private:
+    T value;
+};
+)SRC";
+    const auto result = charmsharp::translate(source, "TemplateModule");
+    contains(result.interface_source, "template<typename T>\n    chare Worker {");
+    contains(result.interface_source, "entry Worker(T initial);");
+    contains(result.interface_source, "entry void process(T next);");
+    contains(result.cpp_source, "template<typename T>\nclass Worker : public CBase_Worker<T>");
+    contains(result.cpp_source, "T value;");
+    rejects("template<typename T, typename U> chare Worker {};", "one typename/class parameter");
+    rejects("template<int N> chare Worker {};", "one typename/class parameter");
+    rejects("template<typename T> group Worker {};", "only scalar chare templates");
+
+    // Ordinary C++ templates are not Charm# constructs.
+    const auto ordinary = charmsharp::translate(
+        "template<typename T> struct Plain { T item; }; chare Foo {};", "TemplateModule");
+    contains(ordinary.cpp_source, "template<typename T> struct Plain { T item; };");
+}
+
 void preserves_ordinary_cpp_and_literal_braces() {
     const auto output = charmsharp::translate(R"SRC(
 constexpr auto punctuation = R"raw({}; entry: chare when "})raw";
@@ -1165,6 +1191,7 @@ void diagnostics() {
 
 int main() {
     golden_counter();
+    chare_template_declaration();
     preserves_ordinary_cpp_and_literal_braces();
     preserves_numeric_literals_and_logical_lines();
     multiple_sections_and_definitions();
