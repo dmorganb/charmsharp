@@ -27,7 +27,7 @@ unsupported entry attributes, return types, and remaining declaration features.
 | 5.3 | Complete (if/for/ref subset) | SDAG `if`, `for`, reference-matched `when` and asynchronous behavior tests |
 | 5.4 | Complete | Port Prefix Sum, verify every expected prefix with varying PEs and message arrival orders |
 | 5.5 | Complete (restricted subset) | Extend to `overlap`, `case`, `while`, `forall`, and lifetime diagnostics |
-| 6.1 | In progress | Infer scalar `chare Main` as `mainchare`; preserve explicit declarations and diagnose conflicting mains; executable Charm++ test |
+| 6.1 | Complete (restricted convention) | Infer scalar `chare Main` as `mainchare`; preserve explicit declarations and diagnose conflicting mains; executable Charm++ test |
 | 6.2 | Planned (research first) | Expand `[[charm::...]]` entries: `notrace`, `appwork`, `nokeep`, `exclusive`, `inline`, `local`; document Charm++ v8.0.0 legality and runtime semantics before implementation |
 | 6.3 | Design gate | C++-style chare templates, `.ci` template metadata and `CBase_Name<T>`; conservative concrete specialization discovery, explicit registration fallback, duplicate handling, cross-TU limitations; implement only after design review |
 | Later | Planned | Variable-size messages, richer entries, multi-file/module integration, source mapping |
