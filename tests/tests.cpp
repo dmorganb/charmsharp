@@ -302,6 +302,39 @@ entry:
             "unsupported Charm++ entry attribute combination");
 }
 
+void ownership_and_exclusive_entry_attributes() {
+    const auto output = charmsharp::translate(R"SRC(message Data { int value; };
+group Consumer {
+entry:
+    Consumer() {}
+    [[charm::nokeep]] void consume(Data* data) { CkPrintf("%d", data->value); }
+};
+nodegroup Gate {
+entry:
+    Gate() {}
+    [[charm::exclusive]] void enter() { CkPrintf("exclusive"); }
+};)SRC", "Ownership");
+    contains(output.interface_source, "entry [nokeep] void consume(Data* data);");
+    contains(output.interface_source, "entry [exclusive] void enter();");
+    contains(output.cpp_source, "void consume(Data* data)");
+    contains(output.cpp_source, "void enter()");
+    ++checks;
+    if (output.cpp_source.find("[[charm::") != std::string::npos)
+        throw std::runtime_error("ownership attributes leaked into C++ output");
+    rejects("chare A { entry: [[charm::exclusive]] void f(); };",
+            "exclusive entry attribute requires a nodegroup");
+    rejects("group A { entry: [[charm::exclusive]] void f(); };",
+            "exclusive entry attribute requires a nodegroup");
+    rejects("array [1D] chare A { entry: [[charm::exclusive]] void f(); };",
+            "exclusive entry attribute requires a nodegroup");
+    rejects("group A { entry: [[charm::nokeep]] A(); };",
+            "entry constructors cannot");
+    rejects("group A { entry: [[charm::nokeep]] [[charm::nokeep]] void f(); };",
+            "duplicate Charm++");
+    rejects("nodegroup A { entry: [[charm::exclusive]] [[charm::nokeep]] void f(); };",
+            "unsupported Charm++ entry attribute combination");
+}
+
 void reduction_target_entries() {
     const auto output = charmsharp::translate(R"SRC(mainchare Main {
 entry:
@@ -1110,6 +1143,7 @@ int main() {
     groups_and_arrays();
     attributed_entries();
     instrumentation_entry_attributes();
+    ownership_and_exclusive_entry_attributes();
     reduction_target_entries();
     entry_constructor_initializers();
     marshalled_entry_arrays();
