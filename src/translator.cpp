@@ -396,9 +396,14 @@ private:
         const std::string chare_name(source_.substr(tokens_[name].begin,
                                                     tokens_[name].end - tokens_[name].begin));
         if (name_used(chare_name)) fail(name, "duplicate chare name or Charm# type name");
-        if (kind == "mainchare" && std::any_of(chares_.begin(), chares_.end(), [](const Chare& chare) {
-            return chare.kind == "mainchare";
-        })) fail(keyword, "only one mainchare is allowed per module");
+        // Only a scalar `chare Main` is an implicit mainchare. Array/group
+        // declarations named Main retain their normal parallel kinds.
+        if (kind == "chare" && chare_name == "Main") kind = "mainchare";
+        const auto previous_main = std::find_if(chares_.begin(), chares_.end(),
+            [](const Chare& chare) { return chare.kind == "mainchare"; });
+        if (kind == "mainchare" && previous_main != chares_.end())
+            fail(keyword, "only one mainchare is allowed per module (already identified " +
+                 previous_main->name + ")");
         const auto bases = parse_ordinary_bases(name + 1, keyword, false);
         const auto brace = bases.brace;
         if (!is(brace, "{")) fail(brace, "expected '{' after parallel type name");
@@ -408,7 +413,7 @@ private:
         chares_.push_back({kind, chare_name, {}});
         detail::ParallelDeclaration semantic_chare;
         semantic_chare.kind = is(keyword, "array") ? detail::ParallelKind::Array :
-                              is(keyword, "mainchare") ? detail::ParallelKind::Mainchare :
+                              kind == "mainchare" ? detail::ParallelKind::Mainchare :
                               is(keyword, "group") ? detail::ParallelKind::Group :
                               is(keyword, "nodegroup") ? detail::ParallelKind::Nodegroup :
                               detail::ParallelKind::Chare;

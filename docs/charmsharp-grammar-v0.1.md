@@ -1,7 +1,7 @@
 # Charm# — Draft Grammar and Translation Specification
 
 **Version:** 0.1 (design draft)  
-**Status:** Design draft; implementation covers a tested subset of declarations and SDAG (through Phase 5.3); remaining forms are proposals  
+**Status:** Design draft; implementation covers tested declaration and SDAG subsets (through Phase 5.5); remaining forms are proposals  
 **Target:** The existing Charm++ interface translator (`charmxi`), native C++ compiler, and unmodified Charm++ runtime
 
 ## 1. Purpose and compatibility
@@ -311,3 +311,19 @@ These issues should be resolved before claiming a complete normative grammar or 
 ## 7. Design summary
 
 Charm# is a small extension surface over the established Charm++ compiler/runtime: `chare`-like declarations, an `entry:` access section, integrated interface metadata, and SDAG constructs embedded in method bodies with *implicit `serial`*. Its research promise is reduced duplication and increased readability **without changing runtime or SDAG behavior**. The joint-entry / persistent join-pattern proposal remains explicitly outside v0.1.
+
+
+## 8. Phase 6.1 semantic convention — implicit mainchare
+
+The grammar's explicit `mainchare Name` production remains valid. As an
+additional, **case-sensitive semantic convention**, a top-level scalar
+`chare Main` is interpreted as though it had been written `mainchare Main`.
+The generated `.ci` uses `mainchare Main` inside a `mainmodule`, and C++
+continues to derive from `CBase_Main`. A distinct explicitly declared
+`mainchare Name` in the same translation unit is a conflict, regardless of
+which declaration appears first. `mainchare Main` is still valid explicitly.
+
+Only the exact scalar chare form triggers inference: `group Main`,
+`nodegroup Main` and `array [1D] chare Main` remain their original kinds.
+A module without an inferred or explicit mainchare is valid and emits the
+ordinary `module` construct.
