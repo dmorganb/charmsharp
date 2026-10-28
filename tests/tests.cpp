@@ -178,6 +178,49 @@ entry:
     contains(output.cpp_source, "class Worker : public CBase_Worker");
 }
 
+void implicit_mainchare_convention() {
+    const auto implicit = charmsharp::translate(R"SRC(chare Main {
+entry:
+    Main(CkArgMsg* args) { delete args; CkExit(); }
+};
+chare Worker { entry: void ping() {} };
+)SRC", "Implicit");
+    contains(implicit.interface_source, "mainmodule Implicit {");
+    contains(implicit.interface_source, "mainchare Main {");
+    contains(implicit.interface_source, "chare Worker {");
+    contains(implicit.cpp_source, "class Main : public CBase_Main");
+    ++checks;
+    const auto model = charmsharp::detail::analyze("chare Main { entry: Main(CkArgMsg* m); };", "I");
+    if (!model.is_mainmodule || model.parallel_types.size() != 1 ||
+        model.parallel_types[0].kind != charmsharp::detail::ParallelKind::Mainchare)
+        throw std::runtime_error("implicit Main was not classified as a mainchare");
+
+    const auto no_main = charmsharp::translate("chare Worker { entry: void ping(); };", "Library");
+    contains(no_main.interface_source, "module Library {");
+    ++checks;
+    if (no_main.interface_source.find("mainmodule") != std::string::npos)
+        throw std::runtime_error("ordinary chare unexpectedly created a mainmodule");
+
+    for (const auto& source : {
+        "array [1D] chare Main { entry: void ping(); };",
+        "group Main { entry: void ping(); };",
+        "nodegroup Main { entry: void ping(); };"}) {
+        const auto output = charmsharp::translate(source, "NotMain");
+        contains(output.interface_source, "module NotMain {");
+        ++checks;
+        if (output.interface_source.find("mainchare Main") != std::string::npos)
+            throw std::runtime_error("non-scalar Main should not be a mainchare");
+    }
+    const auto explicitly_named = charmsharp::translate(
+        "mainchare Startup { entry: Startup(CkArgMsg* msg) { delete msg; } };", "Explicit");
+    contains(explicitly_named.interface_source, "mainmodule Explicit {");
+    contains(explicitly_named.interface_source, "mainchare Startup {");
+
+    rejects("chare Main {}; mainchare Startup {};", "only one mainchare");
+    rejects("mainchare Startup {}; chare Main {};", "only one mainchare");
+    rejects("mainchare Main {}; chare Main {};", "duplicate chare name");
+}
+
 void groups_and_arrays() {
     const auto output = charmsharp::translate(R"SRC(mainchare Main {
 entry:
@@ -1037,6 +1080,7 @@ int main() {
     preserves_numeric_literals_and_logical_lines();
     multiple_sections_and_definitions();
     multiple_chares_and_mainchare();
+    implicit_mainchare_convention();
     groups_and_arrays();
     attributed_entries();
     reduction_target_entries();
