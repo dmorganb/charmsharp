@@ -142,11 +142,12 @@ Charm++ interface language:
 | --- | --- |
 | Parallel objects | `chare`, one `mainchare`, `group`, `nodegroup`, and array chares (1D and 2D exercised in CI) |
 | Entries | `entry:` declarations and inline definitions, constructors and initializer lists, `void` methods, simple synchronous message-pointer returns |
-| Entry attributes | `[[charm::threaded]]`, `[[charm::sync]]`, `[[charm::reductiontarget]]` |
+| Entry attributes | `[[charm::threaded]]`, `[[charm::sync]]`, `[[charm::reductiontarget]]`, `[[charm::notrace]]`, `[[charm::appwork]]`, `[[charm::nokeep]]`, `[[charm::exclusive]]`, `[[charm::inline]]`, `[[charm::local]]` (restricted legal combinations) |
 | Messages and globals | Fixed-size `message` definitions, scalar and fixed-array `readonly` declarations |
-| Inheritance | Restricted ordinary C++ bases for chares/messages; one previously defined local parallel chare base |
+| Inheritance | Restricted ordinary C++ bases for non-template chares/messages; one previously defined local parallel chare base; templated-chare bases deferred |
 | Marshalled parameters | Simple `T data[n]` entry arrays: retained in `.ci`, emitted as `T* data` in C++ |
 | SDAG | `when`, implicit/explicit `serial`, sequential waits, reference matching, `if`/`else`, `for`, `while`, `forall`, `overlap`, and `case` |
+| Chare templates | One `typename`/`class` parameter on a scalar `chare`; explicit or inferred built-in specialization registration; generated shared template header and cross-TU executable validation |
 | Ordinary C++ | Kept through source-range rewriting outside recognized Charm# extensions |
 
 SDAG bodies are emitted in the `.ci` source, and the generated C++ class
@@ -157,7 +158,8 @@ an SDAG loop and a reference-matched `when` receive.
 The precise syntax and restrictions are in the
 [grammar](docs/charmsharp-grammar-v0.1.md),
 [language coverage](docs/language-coverage.md), and
-[declaration coverage audit](docs/declaration-coverage-audit.md).
+[declaration coverage audit](docs/declaration-coverage-audit.md), and
+[chare-template audit](docs/chare-template-coverage-audit.md).
 
 ## Benchmarks and validation
 
@@ -200,7 +202,9 @@ for upstream revision and test details.
   Namespaced parallel declarations and general multi-module dependency
   discovery are not implemented.
 - Variable-size messages, complicated readonly types, and general C++
-  inheritance resolution are outside the tested subset.
+  inheritance resolution are outside the tested subset. Chare templates need
+  a shared header, and automatic concrete specialization discovery is limited
+  to recognized built-in type arguments in one input `.csh`.
 - SDAG receive bodies do not yet support nested SDAG waits or
   comma-separated multi-receive dependencies. For SDAG `for` and `forall`,
   indices that must survive suspension should be persistent chare fields.

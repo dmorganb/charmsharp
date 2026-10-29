@@ -40,7 +40,7 @@ supported.
 | Chare inheritance: ordinary C++ bases | **R, limited** | Simple, earlier-defined local `class`/`struct`, multiple bases/access labels; external and dependent bases deferred. |
 | Chare inheritance: `.ci` parallel base | **R, limited** | One explicitly public, earlier-defined local `chare` base; inherited proxy call tested. No multi-base parallel hierarchy, forward/cross-file resolution, or other parallel kinds. |
 | Message inheritance: ordinary C++ bases | **R, limited** | One or more simple earlier-defined ordinary bases; message-to-message inheritance rejected. |
-| `template` parallel entities/messages, specializations | **D** | Needs grammar, name handling, generated registrations and output ordering. |
+| Scalar `template<typename T> chare Name` and concrete registrations | **R, limited (Phase 6.3)** | One type parameter; tested separate registration module, shared `<module>_templates.h`, proxy inference, multiple specializations and cross-TU consumer. See [template audit](chare-template-coverage-audit.md). Other templated parallel kinds and messages remain deferred. |
 | `namespace`, `using`, `using namespace` in `.ci` | **D** | Charm# parallel declarations inside namespaces are rejected; ordinary C++ namespace code is only passed through. |
 | `class Name;` in `.ci` | **D** | Explicit interface forward declaration distinct from ordinary C++ `class`. |
 | `extern module`, `extern` entity/entry, `include` | **D** | Multi-module generated-header dependencies, reachable module registration, externally declared entries. |
@@ -98,7 +98,7 @@ are the main research/implementation challenge in Phase 4 and beyond.
 | **P2 — specialized** | `PUPable`, template entities, additional chare attributes and namespace support | Implement when benchmarks or reference applications demonstrate demand. |
 | **P3 — niche/compatibility** | Python/accelerator facilities and deprecated `initcall` or message modifier tokens | Defer unless study corpus or toolchain tests show need. |
 
-**Recommendation:** close Phase 3 as a **common-declarations subset**, not a
+**Historical Phase 3 recommendation:** close Phase 3 as a **common-declarations subset**, not a
 complete translation of all `.ci` syntax. Start the agreed SDAG work next,
 while treating P1 declaration gaps as narrowly scoped follow-up PRs. Use the
 four benchmark implementations to drive which gaps actually block the thesis
@@ -110,3 +110,12 @@ experiments; that evidence is more useful than syntactic parity for its own sake
 2. [Charm++ language manual](https://charm.readthedocs.io/en/latest/charm%2B%2B/manual.html)
 3. [Charm# implementation coverage](language-coverage.md), [roadmap](roadmap.md)
    and [design grammar](charmsharp-grammar-v0.1.md)
+
+## Phase 6.3 follow-up (2026-10-29)
+
+The template row above is updated from the original Phase 3 snapshot. Scalar
+chare template support is implemented and pinned-toolchain tested, but it is
+not equivalent to complete Charm++ template compatibility. Explicit complex
+argument strings are parsed structurally; default/multiple/non-type template
+parameters, other template entity kinds, inheritance and whole-program proxy
+usage inference remain deferred. See the [Phase 6.3.4e audit](chare-template-coverage-audit.md).

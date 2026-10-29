@@ -416,3 +416,32 @@ Multiple uses and an explicit `template chare Worker<int>;` are deduplicated.
 This is a translation convention, not additional source grammar. The first
 implementation recognizes concrete built-in C++ type arguments only; dependent,
 nested and cross-translation-unit uses require explicit registration.
+
+
+## 12. Phase 6.3.4e — Implemented template subset and generated headers
+
+The scalar chare-template syntax described in Sections 10–11 now supports
+runnable concrete specializations. An explicit `template chare Worker<int>;`
+registration or a supported inferred `CProxy_Worker<int>` use emits a
+conventional registration in `<module>_specializations.ci`.
+
+Charm# additionally emits `<module>_templates.h`, which contains the complete
+rewritten C++ class-template definitions and the `CK_TEMPLATES_ONLY` inclusion
+of `<module>.def.h` **after** those definitions. The ordinary generated
+`<module>.cpp` includes this shared header; a separately compiled C++ consumer
+must include it too to instantiate templated proxy methods. The ordinary
+module `.def.h` is still included in the generated implementation unit.
+
+This is implementation coverage, not a new language grammar production.
+Supported template declarations have exactly one `typename` or `class`
+parameter without defaults, and proxy-inferred registrations recognize simple
+concrete built-in type arguments in the source being translated. Arbitrary
+nested, dependent or user-defined arguments, cross-file registration discovery,
+extra template parameters and templated-chare inheritance are not supported or
+not runtime-validated. The implicit `chare Main` convention can currently
+misclassify a templated `chare Main`; do not rely on that combination pending
+a dedicated diagnostic and test.
+
+See [the template coverage audit](chare-template-coverage-audit.md) for precise
+evidence and remaining work. Earlier Phase 6.3.1 and 6.3.2 sections document
+the incremental design, not the latest complete implementation status.
