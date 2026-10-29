@@ -111,6 +111,11 @@ jobs:
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
           make charm-run
 
+      - name: Validate independent translation units sharing one Charm++ module
+        run: |
+          export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
+          bash tests/multifile/build.sh
+
       - name: Build and execute implicit chare Main convention
         run: |
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
