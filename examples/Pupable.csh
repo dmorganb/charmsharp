@@ -26,7 +26,7 @@ chare Main {
 entry:
     Main(CkArgMsg* args) {
         delete args;
-        auto receivers = CProxy_Receiver::ckNew();
+        CProxy_Receiver receivers(CProxy_Receiver::ckNew());
         receivers[1].accept(std::make_shared<State>(42));
     }
 };

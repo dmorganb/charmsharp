@@ -28,7 +28,7 @@ class Main : public CBase_Main {
 public:
     Main(CkArgMsg* args) {
         delete args;
-        auto receivers = CProxy_Receiver::ckNew();
+        CProxy_Receiver receivers(CProxy_Receiver::ckNew());
         receivers[1].accept(std::make_shared<State>(42));
     }
 };
