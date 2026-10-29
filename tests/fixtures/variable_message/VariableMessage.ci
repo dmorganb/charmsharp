@@ -1,0 +1,13 @@
+mainmodule VariableMessage {
+    message DataMessage {
+        double values[];
+        int indices[];
+    };
+    chare Worker {
+        entry Worker();
+        entry void receive(DataMessage* msg);
+    };
+    mainchare Main {
+        entry Main(CkArgMsg* args);
+    };
+};

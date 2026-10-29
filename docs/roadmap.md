@@ -30,7 +30,11 @@ unsupported entry attributes, return types, and remaining declaration features.
 | 6.1 | Complete (restricted convention) | Infer scalar `chare Main` as `mainchare`; preserve explicit declarations and diagnose conflicting mains; executable Charm++ test |
 | 6.2 | Complete (restricted subset) | Added `notrace`, `appwork`, `nokeep`, `exclusive`, `inline`, `local` with conservative legality checks and executable pinned-runtime tests |
 | 6.3 | Complete (restricted scalar-chare subset; 6.3.4e audit) | One type parameter, explicit and inferred concrete registrations, multiple specializations, generated shared header, cross-TU executable tests; [limitations documented](chare-template-coverage-audit.md) |
-| Later | Planned | Variable-size messages, richer entries, multi-file/module integration, source mapping |
+| 7.1 | Complete (restricted primitive-array subset) | Restricted variable-size message fields, CI metadata and pointer lowering, pinned-runtime validation |
+| 7.2 | Planned | Readonly message pointers and multi-PE initialization |
+| 7.3 | Planned | `initnode` and `initproc` initialization hooks |
+| 7.4 | Planned | Restricted PUPable registration after v8.0.0 semantics audit |
+| Later | Planned | Richer entries, multi-file/module integration, source mapping |
 
 ## Fixed-size message slice (phase 3.1)
 
@@ -359,3 +363,12 @@ see [SDAG variable lifetime](sdag-variable-lifetime.md).
   `specializations.h` file is required. Template class definitions presently
   must be self-contained enough to move to the shared header; arbitrary
   dependencies on prior local C++ definitions remain unsupported.
+
+## Phase 7 — Message and initialization declarations
+
+1. **7.1:** Recognize ordered standalone primitive `T name[];` message fields; emit conventional `.ci` message member metadata and C++ pointer fields, plus friend access for generated Charmxi serialization code. Preserve fixed fields, ordinary member functions and local ordinary inheritance. Reject ambiguous/dependent/aliased/compound declarators. Validate allocation order, one/two arrays, mixed fields, cross-PE delivery, ownership and compare against handwritten Charm++ v8.0.0 reference. Do not generate custom marshalling.
+2. **7.2:** Verify `readonly message M *name;` syntax and initialization semantics, then validate on multiple PEs; no general readonly pointers.
+3. **7.3:** Verify signatures/registration and lower `[[charm::initnode]]` / `[[charm::initproc]]` to native declarations; count calls across PEs/nodes.
+4. **7.4:** Investigate `PUPable` and `PUP::able` macros/registration; support only verified explicit class registrations, never implicit `pup()` implementations.
+
+Keep each slice independently buildable; complete and verify 7.1 before beginning 7.2.

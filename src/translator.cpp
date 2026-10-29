@@ -359,29 +359,43 @@ private:
         const auto close = matching(brace, "{", "}", tokens_.size());
         if (!is(close + 1, ";")) fail(close, "expected ';' after message body");
 
-        // A plain .ci declaration generates the CMessage_ base; fixed-size
-        // fields and ordinary C++ methods remain verbatim in the class body.
-        // Reject unsized array fields: those require the special variable-size
-        // .ci metadata and allocation semantics not yet implemented here.
+        detail::MessageDeclaration declaration;
+        declaration.name = message_name;
+        declaration.ordinary_bases = bases.cpp;
+        declaration.source = {tokens_[keyword].begin, tokens_[close + 1].end};
+        declaration.name_source = {tokens_[name].begin, tokens_[name].end};
+        declaration.opening_brace = tokens_[brace].begin;
         for (auto i = brace + 1; i < close; ++i) {
-            // Method bodies, parameter lists and initializer expressions are
-            // ordinary C++. In particular, [] there may be a lambda capture.
+            // Ignore balanced method bodies, nested definitions and parameters.
             if (is(i, "{") || is(i, "(")) {
                 const bool paren = is(i, "(");
                 i = matching(i, paren ? "(" : "{", paren ? ")" : "}", close);
                 continue;
             }
-            if (is(i, "[") && is(i + 1, "]") && i > brace + 1 &&
-                tokens_[i - 1].kind == Kind::Identifier && !is(i - 1, "operator"))
-                fail(i, "variable-size message arrays are deferred");
             if (is(i, "entry") && is(i + 1, ":"))
                 fail(i, "entry: is only valid in parallel types");
+            if (!is(i, "[") || !is(i + 1, "]") || i <= brace + 2 ||
+                tokens_[i - 1].kind != Kind::Identifier || is(i - 1, "operator"))
+                continue;
+
+            // Restrict to an unambiguous, standalone T name[]; declaration.
+            // Charmxi owns allocation, packing and element alignment.
+            const auto type = i - 2;
+            const auto boundary = i - 3;
+            const auto type_name = token_text(type);
+            const bool simple_boundary = is(boundary, "{") || is(boundary, ";") ||
+                                         is(boundary, ":") || is(boundary, "}");
+            const bool primitive = type_name == "char" || type_name == "short" ||
+                                   type_name == "int" || type_name == "long" ||
+                                   type_name == "float" || type_name == "double";
+            if (!simple_boundary || !primitive || !is(i + 2, ";"))
+                fail(i, "variable-size message array must be a standalone primitive T name[]; field");
+            declaration.variable_arrays.push_back({type_name, token_text(i - 1),
+                {tokens_[i - 1].begin, tokens_[i - 1].end},
+                {tokens_[i].begin, tokens_[i + 1].end}});
         }
         messages_.push_back(message_name);
-        semantic_.messages.push_back({message_name, bases.cpp,
-                                      {tokens_[keyword].begin, tokens_[close + 1].end},
-                                      {tokens_[name].begin, tokens_[name].end},
-                                      tokens_[brace].begin});
+        semantic_.messages.push_back(std::move(declaration));
         return close + 2;
     }
 

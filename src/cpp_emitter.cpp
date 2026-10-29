@@ -105,6 +105,15 @@ std::string emit_cpp(std::string_view source, const SemanticModel& model) {
         edits.push_back({message.name_source.end, message.opening_brace,
                          " : public CMessage_" + message.name +
                          (message.ordinary_bases.empty() ? " " : ", " + message.ordinary_bases + " ")});
+        if (!message.variable_arrays.empty()) {
+            // Charmxi's generated pack/unpack code must access these pointers.
+            edits.push_back({message.opening_brace + 1, message.opening_brace + 1,
+                             "\n    friend class CMessage_" + message.name + ";"});
+            for (const auto& field : message.variable_arrays) {
+                edits.push_back({field.name_source.begin, field.name_source.begin, "*"});
+                edits.push_back({field.suffix.begin, field.suffix.end, ""});
+            }
+        }
     }
     bool emitted_template_header = false;
     for (const auto& chare : model.parallel_types) {
