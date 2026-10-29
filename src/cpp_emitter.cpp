@@ -155,7 +155,14 @@ std::string emit_cpp(std::string_view source, const SemanticModel& model) {
     }
 
     std::string cpp = rewrite(std::string(source), std::move(edits), 0);
-    cpp.insert(0, "#include \"" + model.module_name + ".decl.h\"\n");
+    std::string preamble;
+    if (!model.pupable_classes.empty()) {
+        preamble += "#include <memory>\n";
+        for (const auto& pupable : model.pupable_classes)
+            preamble += "class " + pupable.name + ";\n";
+    }
+    preamble += "#include \"" + model.module_name + ".decl.h\"\n";
+    cpp.insert(0, preamble);
     if (cpp.empty() || cpp.back() != '\n') cpp += '\n';
     if (!model.template_registrations.empty()) {
         cpp += "#include \"" + model.module_name + "_specializations.decl.h\"\n";

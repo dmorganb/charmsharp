@@ -1,5 +1,6 @@
-#include "Pupable.decl.h"
 #include <memory>
+class State;
+#include "Pupable.decl.h"
 
 class State : public PUP::able {
     int value_;
