@@ -141,3 +141,15 @@ fixture combines multiple definitions and concrete registrations into the
 single specialization module. This is **not** general cross-file automatic
 specialization discovery. Source order and external C++ dependencies remain
 subject to the native toolchain.
+
+## Semantic-model emission refactor
+
+The combined module now obtains interface declaration fragments directly from
+`emit_ci_body` and specialization fragments from `emit_registration_ci_body`.
+The C++ backend emits shared classes and per-source implementations directly
+from their validated `SemanticModel` source ranges. It no longer reparses
+complete generated `.cpp` source to find classes, nor extracts declarations
+by slicing generated `.ci` wrappers or template-header footers. Shared ordinary
+C++ dependencies must be provided as conventional `#include` headers; the
+backend preserves includes before generated declarations rather than trying to
+implement full C++ dependency analysis.

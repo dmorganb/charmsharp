@@ -307,3 +307,14 @@ type/header dependencies to be supplied using ordinary project headers.
 General cross-module declarations are still outside this multi-input path.
 For different Charm++ modules, continue to use separate invocations. Native
 Make/CMake remains responsible for dependency tracking and incremental builds.
+
+### Shared types in multi-file projects
+
+Put ordinary C++ types used by Charm# class fields, entry signatures, or inline
+methods in normal headers and include those headers from the relevant `.csh`
+sources. The shared-module backend collects those `#include` directives before
+emitting common class declarations. It does **not** infer and move arbitrary
+non-Charm# C++ declarations into generated headers. For example, a `Worker`
+with a `SharedConfig` field should include `SharedConfig.h` rather than define
+`struct SharedConfig` only in an unrelated `.csh` source. See
+`tests/multifile/SharedConfig.h` and the Worker fixture.
