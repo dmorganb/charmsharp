@@ -74,5 +74,5 @@ perform general C++ template instantiation or multi-file inference.
 
 See the [Phase 6.3 template audit](chare-template-coverage-audit.md) for the
 test-by-test evidence matrix, deferred user-defined/nested/dependent arguments,
-header dependencies, inheritance restrictions, and a newly identified
-`template chare Main` convention interaction.
+header dependencies, inheritance restrictions, and the resolved
+`template chare Main` convention interaction (now explicitly rejected).
