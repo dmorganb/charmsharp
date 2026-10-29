@@ -88,3 +88,10 @@ object. The CLI's multi-input `--build` invokes that pipeline. The supported
 subset excludes templated chares and PUPable registration pending shared-header
 and registration validation. Ordinary cross-file C++ header dependencies remain
 the user's responsibility.
+
+The integrated multi-input `--build` path also accepts ordinary `.cpp`,
+`.cc` and `.C` files, compiling them directly with `charmc` and linking
+them with the generated objects. The source files are **not** rewritten or
+transpiled. The end-to-end fixture verifies both explicit Make-style linking
+and the integrated build driver. Build dependency tracking beyond invoking the
+compiler remains the responsibility of Make/CMake.

@@ -16,3 +16,13 @@ output="$(./simulation +p2)"
 printf '%s\n' "$output"
 grep -q 'PHYSICS 42' <<<"$output"
 grep -q 'MULTIFILE CHARM# PASS' <<<"$output"
+
+# Also exercise the integrated project --build driver on the same sources.
+"$repo/build/charmsharp" --build --module Simulation --out-dir "$out/integrated" \
+    -o "$out/managed" \
+    "$repo/tests/multifile/Main.csh" "$repo/tests/multifile/Worker.csh" \
+    "$repo/tests/multifile/Physics.cpp"
+managed_output="$("$out/managed" +p2)"
+printf '%s\n' "$managed_output"
+grep -q 'PHYSICS 42' <<<"$managed_output"
+grep -q 'MULTIFILE CHARM# PASS' <<<"$managed_output"

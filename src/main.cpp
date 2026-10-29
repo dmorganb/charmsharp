@@ -20,7 +20,7 @@ namespace fs = std::filesystem;
 namespace {
 
 void usage() {
-    std::cerr << "Usage: charmsharp [--module NAME] [--out-dir DIR] [--force] [--build [-o EXECUTABLE]] FILE.csh\n";
+    std::cerr << "Usage: charmsharp [--module NAME] [--out-dir DIR] [--force] [--build [-o EXECUTABLE]] FILE.csh [OTHER.csh ...] [NATIVE.cpp ...]\n";
 }
 
 // Execute arguments directly: paths and module names never pass through a shell.
@@ -92,6 +92,16 @@ int main(int argc, char** argv) {
             return 2;
         }
     }
+    std::vector<fs::path> native_paths;
+    for (auto it = input_paths.begin(); it != input_paths.end();) {
+        if (it->extension() == ".cpp" || it->extension() == ".cc" ||
+            it->extension() == ".C") {
+            native_paths.push_back(*it);
+            it = input_paths.erase(it);
+        } else {
+            ++it;
+        }
+    }
     if (input_paths.empty() || (!build && !executable.empty())) {
         usage();
         return 2;
@@ -104,7 +114,7 @@ int main(int argc, char** argv) {
             if (!force && fs::exists(executable))
                 throw std::runtime_error("executable exists; use --force to overwrite");
         }
-        if (input_paths.size() > 1) {
+        if (input_paths.size() > 1 || !native_paths.empty()) {
             // Project path: translate each Charm# unit, generate shared declarations
             // and one registration translation unit, then compile/link independently.
             std::vector<std::string> source_texts;
@@ -117,6 +127,8 @@ int main(int argc, char** argv) {
             const auto registration = output_dir / (module + "_registry.cpp");
             std::vector<fs::path> outputs{ci, header, registration};
             for (const auto& path : input_paths) {
+                if (path.extension() != ".csh")
+                    throw std::runtime_error("expected Charm# .csh input: " + path.string());
                 const auto cpp = output_dir / (path.stem().string() + ".cpp");
                 if (std::find(outputs.begin(), outputs.end(), cpp) != outputs.end())
                     throw std::runtime_error("duplicate multi-file output basename: " + cpp.string());
@@ -151,6 +163,14 @@ int main(int argc, char** argv) {
                     args.push_back("-I" + fs::absolute(path).parent_path().string());
                 run_charmc(output_dir, std::move(args));
                 objects.push_back(registry_object);
+                for (const auto& path : native_paths) {
+                    const auto object = path.stem().string() + "_native.o";
+                    std::vector<std::string> native_args{
+                        "-c", fs::absolute(path).string(), "-o", object};
+                    native_args.push_back("-I" + fs::absolute(path).parent_path().string());
+                    run_charmc(output_dir, std::move(native_args));
+                    objects.push_back(object);
+                }
                 args = {"-language", "charm++", "-o", executable.string()};
                 args.insert(args.end(), objects.begin(), objects.end());
                 run_charmc(output_dir, std::move(args));
