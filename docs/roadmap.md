@@ -31,7 +31,7 @@ unsupported entry attributes, return types, and remaining declaration features.
 | 6.2 | Complete (restricted subset) | Added `notrace`, `appwork`, `nokeep`, `exclusive`, `inline`, `local` with conservative legality checks and executable pinned-runtime tests |
 | 6.3 | Complete (restricted scalar-chare subset; 6.3.4e audit) | One type parameter, explicit and inferred concrete registrations, multiple specializations, generated shared header, cross-TU executable tests; [limitations documented](chare-template-coverage-audit.md) |
 | 7.1 | Complete (restricted primitive-array subset) | Restricted variable-size message fields, CI metadata and pointer lowering, pinned-runtime validation |
-| 7.2 | In progress (restricted local-message pointer) | Readonly message pointers and multi-PE initialization |
+| 7.2 | Complete (restricted local-message pointer) | Readonly message pointers and multi-PE initialization |
 | 7.3 | Planned | `initnode` and `initproc` initialization hooks |
 | 7.4 | Planned | Restricted PUPable registration after v8.0.0 semantics audit |
 | Later | Planned | Richer entries, multi-file/module integration, source mapping |
@@ -375,4 +375,4 @@ Keep each slice independently buildable; complete and verify 7.1 before beginnin
 
 ### Phase 7.2 — Readonly message-pointer subset
 
-Charm# accepts `readonly M* name;` only if `message M { ... };` appeared earlier in the same translation unit. The analyzer emits `readonly message M* name;` in `.ci`; the C++ file contains an ordinary `M* name;`. Charm++ registers and distributes a runtime-allocated message pointer from mainchare initialization. No automatic `const` conversion or ownership semantics are invented. Arbitrary pointers, unknown/forward message types, pointer arrays and initialized pointer declarations are rejected. Compare with a handwritten `.ci`/C++ reference on `+p2` before closing 7.2.
+Charm# accepts `readonly M* name;` only if `message M { ... };` appeared earlier in the same translation unit. The analyzer emits `readonly message M* name;` in `.ci`; the C++ file contains an ordinary `M* name;`. Charm++ registers and distributes a runtime-allocated message pointer from mainchare initialization. No automatic `const` conversion or ownership semantics are invented. Arbitrary pointers, unknown/forward message types, pointer arrays and initialized pointer declarations are rejected. Validated against a handwritten `.ci`/C++ reference on `+p2` in pinned Charm++ v8.0.0 CI.
