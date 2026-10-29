@@ -457,3 +457,5 @@ A message body may contain standalone `T name[];` member declarations, where `T`
 ### Phase 7.3 — Initialization hook annotations
 
 A top-level free-function definition can use `[[charm::initnode]] void name() { ... }` or `[[charm::initproc]] void name() { ... }`. Empty parameter lists and explicit `(void)` are accepted. Charm# strips the annotation, preserves the C++ body, and emits the corresponding `initnode void name();` or `initproc void name();` registration in the generated .ci. Non-void return types, parameters, prototypes without definitions, class methods, namespaces, qualified names and duplicate registrations are excluded from the restricted subset. This does not add scheduling semantics; Charmxi and Charm++ control when each hook executes.
+
+The Phase 7.3 free-function subset has executable v8.0.0 integration evidence for node/processor counts and startup order. See [init hook validation](init-hooks-validation.md).

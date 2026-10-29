@@ -23,6 +23,10 @@ grep -Fq 'initproc void initializeProcessor();' "$tmp/generated/InitHooks.ci"
     timeout 45 ./example +p2 > "$tmp/generated.out"
 )
 for version in reference generated; do
+    # Initialization hooks must precede mainchare construction.
+    awk '/^Hook main PE / { main = NR }
+         /^Hook node / || /^Hook processor / { if (main) exit 1 }
+         END { if (!main) exit 1 }' "$tmp/$version.out"
     grep '^Hook ' "$tmp/$version.out" | sort > "$tmp/$version.result"
     test "$(grep -c '^Hook node 0$' "$tmp/$version.result")" -eq 1
     test "$(grep -c '^Hook processor 0$' "$tmp/$version.result")" -eq 1

@@ -81,3 +81,5 @@ header dependencies, inheritance restrictions, and the resolved
 ### Phase 7.3 — Initialization hook slice
 
 Top-level `[[charm::initnode]] void name() { ... }` and `[[charm::initproc]] void name() { ... }` lower to native .ci registrations while retaining ordinary C++ definitions. Duplicate, non-void, parameterized, nested and declaration-only hooks are rejected. The pinned v8.0.0 runtime integration test compares node/PE invocation counts against a separately handwritten Charm++ program. Multi-node distinct-host behavior is not exercised by the two-PE multicore fixture.
+
+Validated Phase 7.3 reference: [initialization hook runtime test](init-hooks-validation.md). The multicore fixture exercises one node and two PEs.
