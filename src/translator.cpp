@@ -1246,7 +1246,15 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
         const auto end = generated.interface_source.rfind("};");
         if (start == std::string::npos || end == std::string::npos || end <= start)
             throw std::logic_error("invalid generated interface module");
-        body += generated.interface_source.substr(start + 1, end - start - 1);
+        {
+            std::string section = generated.interface_source.substr(start + 1,
+                                                                    end - start - 1);
+            const std::string extern_line = "    extern module " +
+                std::string(module_name) + "_specializations;\n";
+            const auto pos = section.find(extern_line);
+            if (pos != std::string::npos) section.erase(pos, extern_line.size());
+            body += section;
+        }
         if (!generated.registration_interface_source.empty()) {
             const auto reg_start = generated.registration_interface_source.find('{');
             const auto reg_end = generated.registration_interface_source.rfind("};");
@@ -1258,7 +1266,7 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
         }
         if (!generated.template_header_source.empty()) {
             const auto& template_header = generated.template_header_source;
-            const auto template_begin = template_header.find("\\n\\n");
+            const auto template_begin = template_header.find("\n\n");
             const auto footer = template_header.rfind("#define CK_TEMPLATES_ONLY");
             if (template_begin == std::string::npos || footer == std::string::npos ||
                 footer <= template_begin)
@@ -1307,11 +1315,11 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
         // Per-file template registration and shared template includes move
         // into the combined module's single registration owner.
         const std::string template_include = "#include \"" +
-            std::string(module_name) + "_templates.h\"\\n";
+            std::string(module_name) + "_templates.h\"\n";
         const std::string specialization_decl = "#include \"" +
-            std::string(module_name) + "_specializations.decl.h\"\\n";
+            std::string(module_name) + "_specializations.decl.h\"\n";
         const std::string specialization_def = "#include \"" +
-            std::string(module_name) + "_specializations.def.h\"\\n";
+            std::string(module_name) + "_specializations.def.h\"\n";
         for (const auto& line : {template_include, specialization_decl, specialization_def}) {
             std::size_t pos = cpp.find(line);
             while (pos != std::string::npos) {
@@ -1325,18 +1333,18 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
     if (mains > 1) throw Diagnostic("multiple mainchares across input files", 0);
     if (!specializations.empty())
         body = "    extern module " + std::string(module_name) +
-               "_specializations;\\n" + body;
+               "_specializations;\n" + body;
     result.interface_source = std::string(mains == 1 ? "mainmodule " : "module ") +
                               std::string(module_name) + " {\n" + body + "};\n";
     if (has_templates)
-        header += "#define CK_TEMPLATES_ONLY\\n#include \"" +
-            std::string(module_name) + ".def.h\"\\n#undef CK_TEMPLATES_ONLY\\n";
+        header += "#define CK_TEMPLATES_ONLY\n#include \"" +
+            std::string(module_name) + ".def.h\"\n#undef CK_TEMPLATES_ONLY\n";
     result.shared_header_source = std::move(header);
     if (!specializations.empty())
         result.specialization_interface_source =
-            "module " + std::string(module_name) + "_specializations {\\n" +
-            "    extern module " + std::string(module_name) + ";\\n" +
-            specializations + "};\\n";
+            "module " + std::string(module_name) + "_specializations {\n" +
+            "    extern module " + std::string(module_name) + ";\n" +
+            specializations + "};\n";
     result.registration_cpp_source = "#include \"" + std::string(module_name) +
         "_classes.h\"\n";
     if (!specializations.empty())
