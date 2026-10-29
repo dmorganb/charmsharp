@@ -1310,6 +1310,12 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
             header += cpp.substr(begin, finish - begin) + "\n";
         for (auto i = spans.rbegin(); i != spans.rend(); ++i)
             cpp.erase(i->first, i->second - i->first);
+        const std::string specialization_def_footer = "#include \"" +
+            std::string(module_name) + "_specializations.def.h\"\n";
+        if (cpp.size() >= specialization_def_footer.size() &&
+            cpp.substr(cpp.size() - specialization_def_footer.size()) ==
+                specialization_def_footer)
+            cpp.erase(cpp.size() - specialization_def_footer.size());
         const std::string def_include = "#include \"" + std::string(module_name) + ".def.h\"\n";
         if (cpp.size() < def_include.size() ||
             cpp.substr(cpp.size() - def_include.size()) != def_include)
