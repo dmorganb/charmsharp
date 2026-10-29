@@ -1,0 +1,9 @@
+mainmodule Simulation {
+    mainchare Main {
+        entry Main(CkArgMsg* msg);
+    };
+    chare Worker {
+        entry Worker();
+        entry void run();
+    };
+};
