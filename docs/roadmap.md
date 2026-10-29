@@ -28,8 +28,8 @@ unsupported entry attributes, return types, and remaining declaration features.
 | 5.4 | Complete | Port Prefix Sum, verify every expected prefix with varying PEs and message arrival orders |
 | 5.5 | Complete (restricted subset) | Extend to `overlap`, `case`, `while`, `forall`, and lifetime diagnostics |
 | 6.1 | Complete (restricted convention) | Infer scalar `chare Main` as `mainchare`; preserve explicit declarations and diagnose conflicting mains; executable Charm++ test |
-| 6.2 | In progress (6.2a instrumentation) | Expand `[[charm::...]]` entries: `notrace`, `appwork`, `nokeep`, `exclusive`, `inline`, `local`; document Charm++ v8.0.0 legality and runtime semantics before implementation |
-| 6.3 | Design gate | C++-style chare templates, `.ci` template metadata and `CBase_Name<T>`; conservative concrete specialization discovery, explicit registration fallback, duplicate handling, cross-TU limitations; implement only after design review |
+| 6.2 | Complete (restricted subset) | Added `notrace`, `appwork`, `nokeep`, `exclusive`, `inline`, `local` with conservative legality checks and executable pinned-runtime tests |
+| 6.3 | Complete (restricted scalar-chare subset; 6.3.4e audit) | One type parameter, explicit and inferred concrete registrations, multiple specializations, generated shared header, cross-TU executable tests; [limitations documented](chare-template-coverage-audit.md) |
 | Later | Planned | Variable-size messages, richer entries, multi-file/module integration, source mapping |
 
 ## Fixed-size message slice (phase 3.1)
@@ -310,7 +310,7 @@ see [SDAG variable lifetime](sdag-variable-lifetime.md).
   discovered. Validate compiled executable behavior against Charm++ v8.0.0.
 
 
-### 6.3.4 — Template validation and hardening (in progress)
+### 6.3.4 — Template validation and hardening (restricted subset complete)
 
 - **6.3.4a/b:** Exercise multiple independent concrete registrations (initially
   built-in `int` and `double`) for the same template chare, verify deduplication,
@@ -320,9 +320,10 @@ see [SDAG variable lifetime](sdag-variable-lifetime.md).
   `CProxy_Main` requires `Main` to appear first in the generated `.ci` module;
   placing `Worker` first makes its generated `.decl.h` refer to an undeclared
   proxy type. The executable fixture uses the supported declaration order.
-- **6.3.4c (next):** Investigate independent translation units, visibility of
-  template definitions and registrations, and the current one-module CLI design;
-  avoid assuming a proxy use in one unit can register a definition elsewhere.
+- **6.3.4c (complete):** Independent translation units and generated
+  `<module>_templates.h`, with `CK_TEMPLATES_ONLY` after complete class
+  definitions. An external consumer can instantiate the proxy from the shared
+  header; it still requires explicit specialization registration in the input.
 - **6.3.4d:** Validate the ordering of multiple chare template definitions
   before the `CK_TEMPLATES_ONLY` inclusion, including an executable two-template
   fixture against Charm++ v8.0.0. Reject inheritance on templated chares for now:
@@ -331,8 +332,11 @@ see [SDAG variable lifetime](sdag-variable-lifetime.md).
   independent Charmxi validation. Keep ordinary non-template inheritance intact.
   Full template inheritance requires shared-header base resolution and an
   explicitly validated generated `.ci` inheritance declaration.
-- **6.3.4e (next):** Audit language coverage and explicitly document remaining
-  user-defined/nested/dependent argument and multi-TU limits before closing phase.
+- **6.3.4e (complete — audit):** [Coverage matrix](chare-template-coverage-audit.md)
+  distinguishes pinned runtime-tested cases from parser-only behavior and
+  deferred user-defined/nested/dependent arguments, inheritance and multi-TU
+  discovery. Found a `template chare Main` implicit-mainchare convention
+  interaction to address with a focused diagnostic/test before broadening syntax.
 
 ### 6.3.4c — Cross-translation-unit template validation
 
