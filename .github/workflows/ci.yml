@@ -121,6 +121,11 @@ jobs:
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
           bash tests/multifile/charmsharp_build.sh
 
+      - name: Exercise PUPable transfer across Charm# source files
+        run: |
+          export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
+          bash tests/multifile/pup_build.sh
+
       - name: Build and execute implicit chare Main convention
         run: |
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
