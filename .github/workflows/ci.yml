@@ -156,6 +156,11 @@ jobs:
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
           make charm-template-cross-tu
 
+      - name: Validate multiple template header definitions and ordering
+        run: |
+          export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
+          make charm-template-header-order
+
       - name: Build and execute group/nodegroup/array example
         run: |
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"

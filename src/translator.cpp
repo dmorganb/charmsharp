@@ -536,6 +536,13 @@ private:
             fail(keyword, "only one mainchare is allowed per module (already identified " +
                  previous_main->name + ")");
         const auto bases = parse_ordinary_bases(name + 1, keyword, false);
+        // Template classes are emitted in a standalone header. A base declared
+        // only in this .csh unit would be invisible to independent consumers.
+        // Until header dependency resolution is implemented, reject inheritance
+        // instead of emitting C++ that fails in another translation unit.
+        if (!template_declaration.empty() &&
+            (!bases.cpp.empty() || !bases.parallel.empty()))
+            fail(keyword, "templated chare inheritance requires shared-header base resolution (deferred)");
         const auto brace = bases.brace;
         if (!is(brace, "{")) fail(brace, "expected '{' after parallel type name");
         const auto close = matching(brace, "{", "}", tokens_.size());

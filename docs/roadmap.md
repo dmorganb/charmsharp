@@ -323,8 +323,14 @@ see [SDAG variable lifetime](sdag-variable-lifetime.md).
 - **6.3.4c (next):** Investigate independent translation units, visibility of
   template definitions and registrations, and the current one-module CLI design;
   avoid assuming a proxy use in one unit can register a definition elsewhere.
-- **6.3.4d (next):** Check template inheritance and generated header ordering
-  against Charm++ v8.0.0. Expand only where semantics are confirmed.
+- **6.3.4d:** Validate the ordering of multiple chare template definitions
+  before the `CK_TEMPLATES_ONLY` inclusion, including an executable two-template
+  fixture against Charm++ v8.0.0. Reject inheritance on templated chares for now:
+  ordinary bases defined only in the source unit are not automatically visible
+  in the generated shared header, and templated parallel-base semantics need
+  independent Charmxi validation. Keep ordinary non-template inheritance intact.
+  Full template inheritance requires shared-header base resolution and an
+  explicitly validated generated `.ci` inheritance declaration.
 - **6.3.4e (next):** Audit language coverage and explicitly document remaining
   user-defined/nested/dependent argument and multi-TU limits before closing phase.
 

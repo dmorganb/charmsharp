@@ -194,6 +194,39 @@ chare Main { entry: Main(CkArgMsg* msg) {
     contains(no_use.template_header_source, "#define CK_TEMPLATES_ONLY");
 }
 
+void template_header_order_and_inheritance_guards() {
+    const auto output = charmsharp::translate(R"SRC(
+chare Main { entry: Main(CkArgMsg* msg) { delete msg; } };
+template<typename T> chare First { entry: First(T value) {} };
+template<typename T> chare Second { entry: Second(T value) {} };
+template chare First<int>;
+template chare Second<double>;
+)SRC", "Ordered");
+    const auto first = output.template_header_source.find("class First : public CBase_First<T>");
+    const auto second = output.template_header_source.find("class Second : public CBase_Second<T>");
+    const auto support = output.template_header_source.find("#define CK_TEMPLATES_ONLY");
+    ++checks;
+    if (first == std::string::npos || second == std::string::npos ||
+        support == std::string::npos || !(first < second && second < support))
+        throw std::runtime_error("template definitions must precede generated template support");
+    contains(output.cpp_source, "#include \"Ordered_templates.h\"");
+    ++checks;
+    if (output.cpp_source.find("#include \"Ordered_templates.h\"",
+            output.cpp_source.find("#include \"Ordered_templates.h\"") + 1) != std::string::npos)
+        throw std::runtime_error("duplicate generated template header include");
+    contains(output.registration_interface_source, "chare First<int>;");
+    contains(output.registration_interface_source, "chare Second<double>;");
+
+    rejects(R"SRC(
+struct Domain {};
+template<typename T> chare Worker : public Domain { entry: Worker(T x) {} };
+)SRC", "templated chare inheritance requires shared-header base resolution");
+    rejects(R"SRC(
+chare Base { entry: Base() {} };
+template<typename T> chare Worker : public Base { entry: Worker(T x) {} };
+)SRC", "templated chare inheritance requires shared-header base resolution");
+}
+
 void multiple_concrete_chare_template_registrations() {
     const auto result = charmsharp::translate(R"SRC(
 template<typename T>
@@ -1307,6 +1340,7 @@ int main() {
     explicit_chare_template_registration();
     inferred_chare_template_registration();
     multiple_concrete_chare_template_registrations();
+    template_header_order_and_inheritance_guards();
     preserves_ordinary_cpp_and_literal_braces();
     preserves_numeric_literals_and_logical_lines();
     multiple_sections_and_definitions();
