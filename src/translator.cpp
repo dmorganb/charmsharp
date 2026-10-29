@@ -527,6 +527,11 @@ private:
         const std::string chare_name(source_.substr(tokens_[name].begin,
                                                     tokens_[name].end - tokens_[name].begin));
         if (name_used(chare_name)) fail(name, "duplicate chare name or Charm# type name");
+        // The implicit mainchare convention applies only to a non-template
+        // scalar chare. Charm++ template mainchares are not in the supported
+        // scalar-chare template subset.
+        if (!template_declaration.empty() && chare_name == "Main")
+            fail(keyword, "templated chare Main is not supported as an implicit mainchare");
         // Only a scalar `chare Main` is an implicit mainchare. Array/group
         // declarations named Main retain their normal parallel kinds.
         if (kind == "chare" && chare_name == "Main") kind = "mainchare";

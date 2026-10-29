@@ -25,7 +25,7 @@ discovery.
 | Complex explicit specialization argument spellings | Parsed structurally, **not validated** | Parser captures balanced angle-bracket contents and rejects only the declared parameter name; acceptance does not prove Charmxi/PUP/C++ correctness |
 | Ordinary or parallel inheritance on templated chares | **Deliberately rejected** | Phase 6.3.4d diagnostic; safe base-definition/header resolution and Charmxi inheritance semantics not implemented |
 | Multiple/default/non-type/template-template parameters and packs | **Rejected** | Only one `typename` or `class` parameter recognized |
-| Templated arrays, groups, nodegroups, explicit mainchares or messages | **Rejected / not lowered** | This phase only implements scalar `chare` templates; see the implicit `Main` caveat below |
+| Templated arrays, groups, nodegroups, explicit mainchares or messages | **Rejected / not lowered** | This phase only implements scalar `chare` templates; templated `chare Main` is rejected to preserve the implicit-mainchare convention |
 | Cross-file/whole-program auto-discovery | **Not implemented** | Each CLI invocation analyzes one `.csh` unit; consumer-only proxy uses are invisible |
 | General header dependency graph and multi-module build | **Not implemented** | Generated header assumes template definition is self-contained; arbitrary source-local dependencies or external interface imports are unresolved |
 
@@ -67,22 +67,20 @@ Tests cover the **specific accepted subset**. A passing executable test does
 not prove arbitrary argument types, serialization, migration, multiple modules,
 or all combinations with other Charm# constructs.
 
-## Additional parser edge case found
+## Implicit-mainchare interaction (follow-up)
 
-A declaration spelled `template<typename T> chare Main` currently enters
-Phase 6.1's `chare Main` convention and can be classified as a templated
-`mainchare` even though this template phase only validates scalar chares.
-This interaction is **not supported or runtime-tested** and should be rejected
-explicitly unless a separately reviewed design defines template mainchares.
-It is a concrete regression-test candidate, not evidence of supported syntax.
+A declaration spelled `template<typename T> chare Main` is now rejected
+with a source-located diagnostic. The implicit `chare Main` convention applies
+to non-template scalar chares only; Charm# does not offer templated mainchares.
+Negative parser tests cover both `typename` and `class` spellings, while
+positive tests preserve ordinary `chare Main` and `Worker<T>` behavior.
 
 ## Known limitations and follow-up priorities
 
-1. **P0 — correct documentation and diagnostics:** Preserve the
+1. **P0 — correct documentation and diagnostics (completed):** Preserve the
    tested/rejected/unverified distinctions; avoid stating that explicit
-   registrations validate arbitrary template arguments. Resolve the
-   templated `chare Main` implicit-mainchare collision with a negative
-   parser regression test.
+   registrations validate arbitrary template arguments. The templated
+   `chare Main` collision now has a source diagnostic and regression tests.
 2. **P1 — shared-header dependency resolution:** For template classes that use
    separately declared bases, helper classes, aliases, or out-of-line method
    definitions, specify which declarations are visible to every consumer and

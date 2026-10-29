@@ -335,8 +335,8 @@ see [SDAG variable lifetime](sdag-variable-lifetime.md).
 - **6.3.4e (complete — audit):** [Coverage matrix](chare-template-coverage-audit.md)
   distinguishes pinned runtime-tested cases from parser-only behavior and
   deferred user-defined/nested/dependent arguments, inheritance and multi-TU
-  discovery. Found a `template chare Main` implicit-mainchare convention
-  interaction to address with a focused diagnostic/test before broadening syntax.
+  discovery. The templated `chare Main` implicit-mainchare convention
+  interaction is addressed in a focused follow-up diagnostic and regression test.
 
 ### 6.3.4c — Cross-translation-unit template validation
 

@@ -438,9 +438,9 @@ parameter without defaults, and proxy-inferred registrations recognize simple
 concrete built-in type arguments in the source being translated. Arbitrary
 nested, dependent or user-defined arguments, cross-file registration discovery,
 extra template parameters and templated-chare inheritance are not supported or
-not runtime-validated. The implicit `chare Main` convention can currently
-misclassify a templated `chare Main`; do not rely on that combination pending
-a dedicated diagnostic and test.
+not runtime-validated. The implicit `chare Main` convention applies only to non-template scalar
+chares. `template<typename T> chare Main` is rejected with a diagnostic,
+rather than generating an unsupported templated mainchare.
 
 See [the template coverage audit](chare-template-coverage-audit.md) for precise
 evidence and remaining work. Earlier Phase 6.3.1 and 6.3.2 sections document

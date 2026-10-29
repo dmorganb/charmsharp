@@ -194,6 +194,22 @@ chare Main { entry: Main(CkArgMsg* msg) {
     contains(no_use.template_header_source, "#define CK_TEMPLATES_ONLY");
 }
 
+void templated_mainchare_conflict() {
+    rejects("template<typename T> chare Main { entry: Main(T x) {} };",
+            "templated chare Main is not supported as an implicit mainchare");
+    rejects("template<class T> chare Main { entry: Main(T x) {} };",
+            "templated chare Main is not supported as an implicit mainchare");
+
+    const auto ordinary = charmsharp::translate(
+        "chare Main { entry: Main(CkArgMsg* args) { delete args; } };", "Implicit");
+    contains(ordinary.interface_source, "mainchare Main {");
+
+    const auto template_worker = charmsharp::translate(
+        "template<typename T> chare Worker { entry: Worker(T x) {} };", "Template");
+    contains(template_worker.interface_source, "template<typename T>");
+    contains(template_worker.interface_source, "chare Worker {");
+}
+
 void template_header_order_and_inheritance_guards() {
     const auto output = charmsharp::translate(R"SRC(
 chare Main { entry: Main(CkArgMsg* msg) { delete msg; } };
@@ -1341,6 +1357,7 @@ int main() {
     inferred_chare_template_registration();
     multiple_concrete_chare_template_registrations();
     template_header_order_and_inheritance_guards();
+    templated_mainchare_conflict();
     preserves_ordinary_cpp_and_literal_braces();
     preserves_numeric_literals_and_logical_lines();
     multiple_sections_and_definitions();
