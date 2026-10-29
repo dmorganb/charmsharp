@@ -1,11 +1,7 @@
-#include "CrossTU.decl.h"
+#include "CrossTU_templates.h"
 
-// Charmxi's generated proxy methods are templates. A consumer TU using a
-// specialization needs their definitions as well as their declarations.
-#define CK_TEMPLATES_ONLY
-#include "CrossTU.def.h"
-#undef CK_TEMPLATES_ONLY
-
+// A separate translation unit sees the complete chare template and its
+// generated Charm++ template machinery through the shared header.
 void launchWorker(CProxy_Main caller) {
     CProxy_Worker<int>::ckNew(42, caller);
 }

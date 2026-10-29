@@ -96,8 +96,9 @@ private:
     contains(result.interface_source, "template<typename T>\n    chare Worker {");
     contains(result.interface_source, "entry Worker(T initial);");
     contains(result.interface_source, "entry void process(T next);");
-    contains(result.cpp_source, "template<typename T>\nclass Worker : public CBase_Worker<T>");
-    contains(result.cpp_source, "T value;");
+    contains(result.template_header_source, "template<typename T>\nclass Worker : public CBase_Worker<T>");
+    contains(result.template_header_source, "T value;");
+    contains(result.cpp_source, "#include \"TemplateModule_templates.h\"");
     rejects("template<typename T, typename U> chare Worker {};", "one typename/class parameter");
     rejects("template<int N> chare Worker {};", "one typename/class parameter");
     rejects("template<typename T> group Worker {};", "only scalar chare templates");
@@ -125,9 +126,9 @@ entry:
     contains(generated.interface_source, "extern module TemplateReg_specializations;");
     contains(generated.registration_interface_source, "chare Worker<int>;");
     contains(generated.registration_interface_source, "extern module TemplateReg;");
-    contains(generated.cpp_source, "CBase_Worker<T>");
+    contains(generated.template_header_source, "CBase_Worker<T>");
     contains(generated.cpp_source, "#include \"TemplateReg_specializations.decl.h\"");
-    contains(generated.cpp_source, "#define CK_TEMPLATES_ONLY");
+    contains(generated.template_header_source, "#define CK_TEMPLATES_ONLY");
     ++checks;
     if (generated.cpp_source.find("template chare Worker<int>;") != std::string::npos)
         throw std::runtime_error("registration syntax leaked into generated C++");
@@ -169,7 +170,7 @@ entry:
         generated.registration_interface_source.find("Worker<long>") != std::string::npos)
         throw std::runtime_error("inferred registration from string or comment");
     contains(generated.cpp_source, "CProxy_Worker<int>::ckNew(1);");
-    contains(generated.cpp_source, "#define CK_TEMPLATES_ONLY");
+    contains(generated.template_header_source, "#define CK_TEMPLATES_ONLY");
 
     const auto mixed = charmsharp::translate(R"SRC(
 template<typename T> chare Worker { entry: Worker(T x) {} };
@@ -190,6 +191,7 @@ chare Main { entry: Main(CkArgMsg* msg) {
     const auto no_use = charmsharp::translate(
         "template<typename T> chare Worker { entry: Worker(T x) {} };", "UnusedReg");
     equal(no_use.registration_interface_source, "");
+    contains(no_use.template_header_source, "#define CK_TEMPLATES_ONLY");
 }
 
 void multiple_concrete_chare_template_registrations() {
@@ -206,6 +208,7 @@ chare Main { entry: Main(CkArgMsg* msg) {
     contains(result.registration_interface_source, "chare Worker<double>;");
     contains(result.interface_source, "extern module MultiTemplate_specializations;");
     contains(result.cpp_source, "CProxy_Worker<double>::ckNew(3.5);");
+    contains(result.template_header_source, "class Worker : public CBase_Worker<T>");
     ++checks;
     const auto first = result.registration_interface_source.find("chare Worker<int>;");
     if (result.registration_interface_source.find("chare Worker<int>;", first + 1) !=

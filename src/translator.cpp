@@ -152,7 +152,9 @@ public:
         auto cpp = detail::emit_cpp(source_, semantic_);
         auto ci = detail::emit_ci(source_, semantic_);
         auto registration_ci = detail::emit_registration_ci(semantic_);
-        return {{std::move(ci), std::move(cpp), std::move(registration_ci)}, std::move(semantic_)};
+        auto template_header = detail::emit_template_header(source_, semantic_);
+        return {{std::move(ci), std::move(cpp), std::move(registration_ci),
+                 std::move(template_header)}, std::move(semantic_)};
     }
 
 private:

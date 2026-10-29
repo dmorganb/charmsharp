@@ -341,6 +341,11 @@ see [SDAG variable lifetime](sdag-variable-lifetime.md).
   registration is therefore required in the definition unit; no whole-program
   analysis, globally shared specialization database, or multi-file build command
   is implied by this test.
-- Generated template definitions remain in the producer C++ object. Consumers
-  need the primary `.decl.h` for declarations; do not independently include
-  `.def.h` from multiple units without a separate ODR/registration analysis.
+- Generate `<module>_templates.h` containing complete template definitions
+  and a guarded `CK_TEMPLATES_ONLY` inclusion of `<module>.def.h` after the
+  definitions. Include this header in both the producer and independent C++
+  consumers, while retaining the ordinary `.def.h` inclusion in one producer.
+- Keep runtime registrations in `<module>_specializations.ci`; no separate
+  `specializations.h` file is required. Template class definitions presently
+  must be self-contained enough to move to the shared header; arbitrary
+  dependencies on prior local C++ definitions remain unsupported.

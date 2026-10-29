@@ -1,6 +1,7 @@
 #include "cpp_emitter.hpp"
 
 #include <algorithm>
+#include <utility>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -37,7 +38,61 @@ void replace_parallel(std::vector<Edit>& edits, const ParallelDeclaration& chare
                          "\npublic:\n    " + chare.name + "_SDAG_CODE\n"});
 }
 
+std::size_t template_start(std::string_view source, const ParallelDeclaration& chare) {
+    // The keyword source range excludes the preceding C++ template prefix.
+    const auto pos = source.rfind(chare.template_declaration, chare.source.begin);
+    if (pos == std::string_view::npos ||
+        pos + chare.template_declaration.size() > chare.source.begin)
+        throw std::logic_error("missing chare template prefix");
+    return pos;
+}
+
+std::string rewrite(std::string text, std::vector<Edit> edits, std::size_t base) {
+    std::stable_sort(edits.begin(), edits.end(), [](const Edit& a, const Edit& b) {
+        return a.begin > b.begin;
+    });
+    auto boundary = base + text.size();
+    for (const auto& edit : edits) {
+        if (edit.begin < base || edit.begin > edit.end || edit.end > boundary)
+            throw std::logic_error("overlapping or invalid C++ source edits");
+        text.replace(edit.begin - base, edit.end - edit.begin, edit.replacement);
+        boundary = edit.begin;
+    }
+    return text;
+}
+
 } // namespace
+
+std::string emit_template_header(std::string_view source, const SemanticModel& model) {
+    std::string header;
+    for (const auto& chare : model.parallel_types) {
+        if (chare.template_declaration.empty()) continue;
+        if (header.empty())
+            header = "#pragma once\n#include \"" + model.module_name + ".decl.h\"\n\n";
+        const auto begin = template_start(source, chare);
+        std::vector<Edit> edits;
+        replace_parallel(edits, chare);
+        for (const auto& parameter : model.marshalled_arrays) {
+            if (parameter.name.begin < begin || parameter.suffix.end > chare.source.end)
+                continue;
+            if (std::any_of(edits.begin(), edits.end(), [&](const Edit& edit) {
+                    return edit.replacement.empty() &&
+                           edit.begin <= parameter.name.begin &&
+                           parameter.suffix.end <= edit.end;
+                })) continue;
+            edits.push_back({parameter.name.begin, parameter.name.begin, "*"});
+            edits.push_back({parameter.suffix.begin, parameter.suffix.end, ""});
+        }
+        header += rewrite(std::string(source.substr(begin, chare.source.end - begin)),
+                          std::move(edits), begin);
+        header += "\n\n";
+    }
+    if (!header.empty()) {
+        header += "#define CK_TEMPLATES_ONLY\n#include \"" + model.module_name +
+                  ".def.h\"\n#undef CK_TEMPLATES_ONLY\n";
+    }
+    return header;
+}
 
 std::string emit_cpp(std::string_view source, const SemanticModel& model) {
     std::vector<Edit> edits;
@@ -51,9 +106,26 @@ std::string emit_cpp(std::string_view source, const SemanticModel& model) {
                          " : public CMessage_" + message.name +
                          (message.ordinary_bases.empty() ? " " : ", " + message.ordinary_bases + " ")});
     }
-    for (const auto& chare : model.parallel_types)
-        replace_parallel(edits, chare);
+    bool emitted_template_header = false;
+    for (const auto& chare : model.parallel_types) {
+        if (chare.template_declaration.empty()) {
+            replace_parallel(edits, chare);
+        } else {
+            const auto start = template_start(source, chare);
+            edits.push_back({start, chare.source.end,
+                emitted_template_header ? "" :
+                    "#include \"" + model.module_name + "_templates.h\"\n"});
+            emitted_template_header = true;
+        }
+    }
     for (const auto& parameter : model.marshalled_arrays) {
+        // Template class definitions were moved into the shared header.
+        if (std::any_of(model.parallel_types.begin(), model.parallel_types.end(),
+                        [&](const ParallelDeclaration& chare) {
+                            return !chare.template_declaration.empty() &&
+                                   parameter.name.begin >= template_start(source, chare) &&
+                                   parameter.suffix.end <= chare.source.end;
+                        })) continue;
         // SDAG owns these signatures. Do not rewrite bytes that are removed
         // with the containing method or explicit receive declaration.
         if (std::any_of(edits.begin(), edits.end(), [&](const Edit& edit) {
@@ -66,24 +138,11 @@ std::string emit_cpp(std::string_view source, const SemanticModel& model) {
         edits.push_back({parameter.suffix.begin, parameter.suffix.end, ""});
     }
 
-    // Apply edits from right to left so the source ranges remain stable.
-    std::stable_sort(edits.begin(), edits.end(), [](const Edit& a, const Edit& b) {
-        return a.begin > b.begin;
-    });
-    std::string cpp(source);
-    auto boundary = source.size();
-    for (const auto& edit : edits) {
-        if (edit.begin > edit.end || edit.end > boundary)
-            throw std::logic_error("overlapping or invalid C++ source edits");
-        cpp.replace(edit.begin, edit.end - edit.begin, edit.replacement);
-        boundary = edit.begin;
-    }
+    std::string cpp = rewrite(std::string(source), std::move(edits), 0);
     cpp.insert(0, "#include \"" + model.module_name + ".decl.h\"\n");
     if (cpp.empty() || cpp.back() != '\n') cpp += '\n';
     if (!model.template_registrations.empty()) {
         cpp += "#include \"" + model.module_name + "_specializations.decl.h\"\n";
-        cpp += "#define CK_TEMPLATES_ONLY\n#include \"" + model.module_name +
-               ".def.h\"\n#undef CK_TEMPLATES_ONLY\n";
     }
     cpp += "#include \"" + model.module_name + ".def.h\"\n";
     if (!model.template_registrations.empty())

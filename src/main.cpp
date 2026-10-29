@@ -116,18 +116,24 @@ int main(int argc, char** argv) {
         const auto ci_path = output_dir / (module + ".ci");
         const auto cpp_path = output_dir / (module + ".cpp");
         const auto registration_path = output_dir / (module + "_specializations.ci");
+        const auto template_path = output_dir / (module + "_templates.h");
         if (!force && (fs::exists(ci_path) || fs::exists(cpp_path) ||
-                       (!generated.registration_interface_source.empty() && fs::exists(registration_path)))) {
+                       (!generated.registration_interface_source.empty() && fs::exists(registration_path)) ||
+                       (!generated.template_header_source.empty() && fs::exists(template_path)))) {
             throw std::runtime_error("output exists; use --force to overwrite");
         }
         fs::create_directories(output_dir);
         write_file(ci_path, generated.interface_source);
         write_file(cpp_path, generated.cpp_source);
+        if (!generated.template_header_source.empty())
+            write_file(template_path, generated.template_header_source);
         if (!generated.registration_interface_source.empty())
             write_file(registration_path, generated.registration_interface_source);
         std::cout << ci_path << '\n' << cpp_path << '\n';
         if (!generated.registration_interface_source.empty())
             std::cout << registration_path << '\n';
+        if (!generated.template_header_source.empty())
+            std::cout << template_path << '\n';
         if (build) {
             std::cout.flush();
             run_charmc(output_dir, {module + ".ci"});
