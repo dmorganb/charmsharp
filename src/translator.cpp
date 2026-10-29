@@ -1206,31 +1206,13 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
         for (const auto& pupable : model.pupable_classes)
             pup_forwards += "class " + pupable.name + ";\n";
 
-        const auto generated = translate(source, module_name);
-        const auto start = generated.interface_source.find('{');
-        const auto end = generated.interface_source.rfind("};");
-        if (start == std::string::npos || end == std::string::npos || end <= start)
-            throw std::logic_error("invalid generated interface module");
-        {
-            std::string section = generated.interface_source.substr(start + 1,
-                                                                    end - start - 1);
-            const std::string extern_line = "    extern module " +
-                std::string(module_name) + "_specializations;\n";
-            const auto pos = section.find(extern_line);
-            if (pos != std::string::npos) section.erase(pos, extern_line.size());
-            body += section;
-        }
-        if (!generated.registration_interface_source.empty()) {
-            const auto reg_start = generated.registration_interface_source.find('{');
-            const auto reg_end = generated.registration_interface_source.rfind("};");
-            if (reg_start == std::string::npos || reg_end == std::string::npos ||
-                reg_end <= reg_start)
-                throw std::logic_error("invalid generated specialization interface");
-            specializations += generated.registration_interface_source.substr(
-                reg_start + 1, reg_end - reg_start - 1);
-        }
-        if (!generated.template_header_source.empty()) has_templates = true;
-        if (generated.interface_source.rfind("mainmodule ", 0) == 0) ++mains;
+        body += detail::emit_ci_body(source, model, false);
+        specializations += detail::emit_registration_ci_body(model);
+        if (std::any_of(model.parallel_types.begin(), model.parallel_types.end(),
+                [](const detail::ParallelDeclaration& chare) {
+                    return !chare.template_declaration.empty();
+                })) has_templates = true;
+        if (model.is_mainmodule) ++mains;
 
         // Preserve user includes in the shared class header; class definitions
         // may depend on types declared by ordinary project headers.
@@ -1260,8 +1242,8 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
     if (has_templates)
         header += "#define CK_TEMPLATES_ONLY\n#include \"" +
             std::string(module_name) + ".def.h\"\n#undef CK_TEMPLATES_ONLY\n";
-    header.insert(header.find("\n") + 1, user_includes + pup_forwards);
-    header.insert(header.find("\n") + 1 + user_includes.size() + pup_forwards.size(),
+    const auto preamble_end = header.find("\n", header.find("\n") + 1) + 1;
+    header.insert(preamble_end, user_includes + pup_forwards +
                   "#include \"" + std::string(module_name) + ".decl.h\"\n");
     result.shared_header_source = std::move(header);
     if (!specializations.empty())
