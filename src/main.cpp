@@ -63,6 +63,13 @@ void write_file(const fs::path& path, const std::string& content) {
     if (!output) throw std::runtime_error("write failed for " + path.string());
 }
 
+// Preserve timestamps for unchanged generated artifacts. This allows Make to
+// avoid rebuilding downstream objects when only unrelated C++ bodies change.
+void write_if_changed(const fs::path& path, const std::string& content) {
+    if (fs::exists(path) && read_file(path) == content) return;
+    write_file(path, content);
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -139,11 +146,11 @@ int main(int argc, char** argv) {
                     if (fs::exists(output))
                         throw std::runtime_error("output exists; use --force to overwrite");
             fs::create_directories(output_dir);
-            write_file(ci, combined.interface_source);
-            write_file(header, combined.shared_header_source);
-            write_file(registration, combined.registration_cpp_source);
+            write_if_changed(ci, combined.interface_source);
+            write_if_changed(header, combined.shared_header_source);
+            write_if_changed(registration, combined.registration_cpp_source);
             for (std::size_t i = 0; i < input_paths.size(); ++i)
-                write_file(outputs[i + 3], combined.cpp_sources[i]);
+                write_if_changed(outputs[i + 3], combined.cpp_sources[i]);
             for (const auto& output : outputs) std::cout << output << '\n';
             if (build) {
                 std::cout.flush();

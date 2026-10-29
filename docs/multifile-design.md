@@ -66,15 +66,11 @@ conventions before introducing a multi-file Charm# compiler path.
 
 ## Current branch implementation
 
-The multi-file CLI now accepts two or more `.csh` inputs and produces the
-shared `.ci` file plus one `.cpp` per input. It validates duplicate type and
-readonly names, multi-mainchare conflicts, duplicate basenames, and output
-overwrite protection. `--build` deliberately rejects multi-file invocations:
-individual C++ outputs still include the shared `.def.h`, which must not be
-linked from multiple translation units. In other words, current output is an
-intermediate representation for implementing registration ownership, **not yet
-a usable multi-file executable pipeline**. Templates remain excluded from
-this first multi-input path.
+The CLI now accepts multiple `.csh` inputs under one module and emits
+one `.ci`, a class header, one registration `.cpp`, and one implementation
+`.cpp` per input. Source files are independently compiled through `--build`,
+and native C++ files can be linked unchanged. Cross-file template and PUPable
+registration remain explicitly unsupported; see below.
 
 ## Shared-registration implementation
 
