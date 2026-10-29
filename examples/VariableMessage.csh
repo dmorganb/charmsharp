@@ -27,7 +27,7 @@ chare Main {
 entry:
     Main(CkArgMsg* args) {
         delete args;
-        auto worker = CProxy_Worker::ckNew(1);
+        CProxy_Worker worker = CProxy_Worker::ckNew(1);
         auto* msg = new (4, 4) DataMessage;
         msg->count = 4;
         msg->fixed[0] = 4;
