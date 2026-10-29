@@ -94,6 +94,97 @@ std::string emit_template_header(std::string_view source, const SemanticModel& m
     return header;
 }
 
+std::string emit_shared_classes(std::string_view source, const SemanticModel& model) {
+    struct Decl { std::size_t begin, end; std::vector<Edit> edits; };
+    std::vector<Decl> decls;
+    for (const auto& chare : model.parallel_types) {
+        Decl d{chare.source.begin, chare.source.end, {}};
+        if (!chare.template_declaration.empty())
+            d.begin = template_start(source, chare);
+        replace_parallel(d.edits, chare);
+        decls.push_back(std::move(d));
+    }
+    for (const auto& message : model.messages) {
+        Decl d{message.source.begin, message.source.end, {}};
+        d.edits.push_back({message.source.begin, message.name_source.begin, "class "});
+        d.edits.push_back({message.name_source.end, message.opening_brace,
+            " : public CMessage_" + message.name +
+            (message.ordinary_bases.empty() ? " " : ", " + message.ordinary_bases + " ")});
+        if (!message.variable_arrays.empty()) {
+            d.edits.push_back({message.opening_brace + 1, message.opening_brace + 1,
+                "\n    friend class CMessage_" + message.name + ";"});
+            for (const auto& field : message.variable_arrays) {
+                d.edits.push_back({field.name_source.begin, field.name_source.begin, "*"});
+                d.edits.push_back({field.suffix.begin, field.suffix.end, ""});
+            }
+        }
+        decls.push_back(std::move(d));
+    }
+    for (const auto& pup : model.pupable_classes) {
+        // PUPable source ranges have no class-start field; the attribute starts
+        // immediately before the annotated declaration in the supported grammar.
+        const auto close = source.find(';', pup.closing_brace);
+        if (close == std::string_view::npos)
+            throw std::logic_error("missing PUPable class terminator");
+        Decl d{pup.attribute.begin, close + 1, {}};
+        d.edits.push_back({pup.attribute.begin, pup.attribute.end, ""});
+        d.edits.push_back({pup.closing_brace, pup.closing_brace,
+                          "\n    PUPable_decl(" + pup.name + ");\n"});
+        decls.push_back(std::move(d));
+    }
+    for (auto& decl : decls) {
+        for (const auto& parameter : model.marshalled_arrays) {
+            if (parameter.name.begin < decl.begin || parameter.suffix.end > decl.end)
+                continue;
+            if (std::any_of(decl.edits.begin(), decl.edits.end(), [&](const Edit& edit) {
+                return edit.replacement.empty() &&
+                       edit.begin <= parameter.name.begin && parameter.suffix.end <= edit.end;
+            })) continue;
+            decl.edits.push_back({parameter.name.begin, parameter.name.begin, "*"});
+            decl.edits.push_back({parameter.suffix.begin, parameter.suffix.end, ""});
+        }
+    }
+    std::sort(decls.begin(), decls.end(), [](const Decl& a, const Decl& b) {
+        return a.begin < b.begin;
+    });
+    std::string result;
+    for (const auto& decl : decls) {
+        result += rewrite(std::string(source.substr(decl.begin, decl.end - decl.begin)),
+                          decl.edits, decl.begin) + "\n";
+    }
+    return result;
+}
+
+std::string emit_multi_cpp(std::string_view source, const SemanticModel& model) {
+    std::vector<Edit> edits;
+    for (const auto& chare : model.parallel_types)
+        edits.push_back({chare.template_declaration.empty() ? chare.source.begin :
+                         template_start(source, chare), chare.source.end, ""});
+    for (const auto& message : model.messages)
+        edits.push_back({message.source.begin, message.source.end, ""});
+    for (const auto& pup : model.pupable_classes) {
+        const auto close = source.find(';', pup.closing_brace);
+        if (close == std::string_view::npos)
+            throw std::logic_error("missing PUPable class terminator");
+        edits.push_back({pup.attribute.begin, close + 1, ""});
+    }
+    for (const auto& hook : model.init_hooks)
+        edits.push_back({hook.attribute.begin, hook.attribute.end, ""});
+    for (const auto& registration : model.template_registrations)
+        edits.push_back({registration.source.begin, registration.source.end, ""});
+    for (const auto& readonly : model.readonly_variables)
+        edits.push_back({readonly.source.begin, readonly.declarator.begin, ""});
+    for (const auto& parameter : model.marshalled_arrays) {
+        if (std::any_of(edits.begin(), edits.end(), [&](const Edit& edit) {
+            return edit.begin <= parameter.name.begin && parameter.suffix.end <= edit.end;
+        })) continue;
+        edits.push_back({parameter.name.begin, parameter.name.begin, "*"});
+        edits.push_back({parameter.suffix.begin, parameter.suffix.end, ""});
+    }
+    return "#include \"" + model.module_name + "_classes.h\"\n" +
+           rewrite(std::string(source), std::move(edits), 0);
+}
+
 std::string emit_cpp(std::string_view source, const SemanticModel& model) {
     std::vector<Edit> edits;
     for (const auto& pupable : model.pupable_classes) {
