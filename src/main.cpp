@@ -133,6 +133,10 @@ int main(int argc, char** argv) {
             const auto header = output_dir / (module + "_classes.h");
             const auto registration = output_dir / (module + "_registry.cpp");
             std::vector<fs::path> outputs{ci, header, registration};
+            const auto specialization = output_dir / (module + "_specializations.ci");
+            if (!combined.specialization_interface_source.empty())
+                outputs.push_back(specialization);
+            const std::size_t cpp_start = outputs.size();
             for (const auto& path : input_paths) {
                 if (path.extension() != ".csh")
                     throw std::runtime_error("expected Charm# .csh input: " + path.string());
@@ -162,16 +166,20 @@ int main(int argc, char** argv) {
             write_if_changed(ci, combined.interface_source);
             write_if_changed(header, combined.shared_header_source);
             write_if_changed(registration, combined.registration_cpp_source);
+            if (!combined.specialization_interface_source.empty())
+                write_if_changed(specialization, combined.specialization_interface_source);
             for (std::size_t i = 0; i < input_paths.size(); ++i)
-                write_if_changed(outputs[i + 3], combined.cpp_sources[i]);
+                write_if_changed(outputs[i + cpp_start], combined.cpp_sources[i]);
             for (const auto& output : outputs) std::cout << output << '\n';
             if (build) {
                 std::cout.flush();
                 run_charmc(output_dir, {module + ".ci"});
+                if (!combined.specialization_interface_source.empty())
+                    run_charmc(output_dir, {module + "_specializations.ci"});
                 std::vector<std::string> objects;
                 for (std::size_t i = 0; i < input_paths.size(); ++i) {
                     const auto object = input_paths[i].stem().string() + ".o";
-                    std::vector<std::string> args{"-c", outputs[i + 3].filename().string(), "-o", object};
+                    std::vector<std::string> args{"-c", outputs[i + cpp_start].filename().string(), "-o", object};
                     for (const auto& path : input_paths)
                         args.push_back("-I" + fs::absolute(path).parent_path().string());
                     run_charmc(output_dir, std::move(args));

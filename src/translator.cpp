@@ -1225,6 +1225,8 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
     if (sources.empty()) throw Diagnostic("expected at least one input", 0);
     MultiGenerated result;
     std::string body;
+    std::string specializations;
+    bool has_templates = false;
     std::size_t mains = 0;
     std::vector<std::string> declared_names;
     std::string header = "#pragma once\n#include <memory>\n#include \"" + std::string(module_name) + ".decl.h\"\n";
@@ -1238,11 +1240,6 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
         for (const auto& chare : model.parallel_types) register_name(chare.name);
         for (const auto& message : model.messages) register_name(message.name);
         for (const auto& readonly : model.readonly_variables) register_name(readonly.name);
-        if (!model.template_registrations.empty())
-            throw Diagnostic("multi-file template specialization registration is not yet supported", 0);
-        for (const auto& chare : model.parallel_types)
-            if (!chare.template_declaration.empty())
-                throw Diagnostic("multi-file chare templates require shared-template integration", 0);
 
         const auto generated = translate(source, module_name);
         const auto start = generated.interface_source.find('{');
@@ -1250,6 +1247,26 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
         if (start == std::string::npos || end == std::string::npos || end <= start)
             throw std::logic_error("invalid generated interface module");
         body += generated.interface_source.substr(start + 1, end - start - 1);
+        if (!generated.registration_interface_source.empty()) {
+            const auto reg_start = generated.registration_interface_source.find('{');
+            const auto reg_end = generated.registration_interface_source.rfind("};");
+            if (reg_start == std::string::npos || reg_end == std::string::npos ||
+                reg_end <= reg_start)
+                throw std::logic_error("invalid generated specialization interface");
+            specializations += generated.registration_interface_source.substr(
+                reg_start + 1, reg_end - reg_start - 1);
+        }
+        if (!generated.template_header_source.empty()) {
+            const auto& template_header = generated.template_header_source;
+            const auto template_begin = template_header.find("\\n\\n");
+            const auto footer = template_header.rfind("#define CK_TEMPLATES_ONLY");
+            if (template_begin == std::string::npos || footer == std::string::npos ||
+                footer <= template_begin)
+                throw std::logic_error("invalid generated template header");
+            header += template_header.substr(template_begin + 2,
+                                             footer - template_begin - 2);
+            has_templates = true;
+        }
         if (generated.interface_source.rfind("mainmodule ", 0) == 0) ++mains;
 
         // Preserve user includes in the shared class header; class definitions
@@ -1275,7 +1292,8 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
         for (const auto& pupable : model.pupable_classes)
             spans.push_back(class_span(cpp, pupable.name));
         for (const auto& chare : model.parallel_types)
-            spans.push_back(class_span(cpp, chare.name));
+            if (chare.template_declaration.empty())
+                spans.push_back(class_span(cpp, chare.name));
         std::sort(spans.begin(), spans.end());
         for (const auto& [begin, finish] : spans)
             header += cpp.substr(begin, finish - begin) + "\n";
@@ -1286,15 +1304,49 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
             cpp.substr(cpp.size() - def_include.size()) != def_include)
             throw std::logic_error("expected generated module registration footer");
         cpp.erase(cpp.size() - def_include.size());
+        // Per-file template registration and shared template includes move
+        // into the combined module's single registration owner.
+        const std::string template_include = "#include \"" +
+            std::string(module_name) + "_templates.h\"\\n";
+        const std::string specialization_decl = "#include \"" +
+            std::string(module_name) + "_specializations.decl.h\"\\n";
+        const std::string specialization_def = "#include \"" +
+            std::string(module_name) + "_specializations.def.h\"\\n";
+        for (const auto& line : {template_include, specialization_decl, specialization_def}) {
+            std::size_t pos = cpp.find(line);
+            while (pos != std::string::npos) {
+                cpp.erase(pos, line.size());
+                pos = cpp.find(line);
+            }
+        }
         cpp.insert(0, "#include \"" + std::string(module_name) + "_classes.h\"\n");
         result.cpp_sources.push_back(std::move(cpp));
     }
     if (mains > 1) throw Diagnostic("multiple mainchares across input files", 0);
+    if (!specializations.empty())
+        body = "    extern module " + std::string(module_name) +
+               "_specializations;\\n" + body;
     result.interface_source = std::string(mains == 1 ? "mainmodule " : "module ") +
                               std::string(module_name) + " {\n" + body + "};\n";
+    if (has_templates)
+        header += "#define CK_TEMPLATES_ONLY\\n#include \"" +
+            std::string(module_name) + ".def.h\"\\n#undef CK_TEMPLATES_ONLY\\n";
     result.shared_header_source = std::move(header);
+    if (!specializations.empty())
+        result.specialization_interface_source =
+            "module " + std::string(module_name) + "_specializations {\\n" +
+            "    extern module " + std::string(module_name) + ";\\n" +
+            specializations + "};\\n";
     result.registration_cpp_source = "#include \"" + std::string(module_name) +
-        "_classes.h\"\n#include \"" + std::string(module_name) + ".def.h\"\n";
+        "_classes.h\"\n";
+    if (!specializations.empty())
+        result.registration_cpp_source += "#include \"" + std::string(module_name) +
+            "_specializations.decl.h\"\n";
+    result.registration_cpp_source += "#include \"" + std::string(module_name) +
+        ".def.h\"\n";
+    if (!specializations.empty())
+        result.registration_cpp_source += "#include \"" + std::string(module_name) +
+            "_specializations.def.h\"\n";
     return result;
 }
 } // namespace charmsharp

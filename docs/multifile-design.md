@@ -122,3 +122,13 @@ interface metadata is aggregated in the common `.ci`. The existing C++
 emitter inserts `PUPable_decl` and the single registration translation unit
 includes `.def.h`. Runtime transfer validation is required before considering
 this feature complete.
+
+## Scalar template registration integration
+
+The shared-module aggregation now merges already-lowered template declarations
+and the explicit specialization `.ci` module. Template class definitions
+are collected into the common class header, with Charmxi's
+`CK_TEMPLATES_ONLY` glue included once. Registration metadata is emitted in
+a single specializations module and the registry translation unit includes
+its generated `.decl.h` and `.def.h` once. This requires executable pinned
+runtime validation and does not implement automatic cross-file discovery.

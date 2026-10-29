@@ -22,6 +22,7 @@ struct MultiGenerated {
     std::vector<std::string> cpp_sources;
     std::string shared_header_source;
     std::string registration_cpp_source;
+    std::string specialization_interface_source;
 };
 
 [[nodiscard]] MultiGenerated translate_many(
