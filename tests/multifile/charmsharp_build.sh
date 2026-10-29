@@ -15,7 +15,7 @@ charmc -language charm++ Main.o Worker.o registry.o Physics.o -o simulation
 output="$(./simulation +p2)"
 printf '%s\n' "$output"
 grep -q 'PHYSICS 42' <<<"$output"
-grep -q 'MULTIFILE CHARM# PASS' <<<"$output"
+grep -q 'MULTIFILE CHARM# PASS: 42' <<<"$output"
 
 # Also exercise the integrated project --build driver on the same sources.
 "$repo/build/charmsharp" --build --module Simulation --out-dir "$out/integrated" \
@@ -25,4 +25,4 @@ grep -q 'MULTIFILE CHARM# PASS' <<<"$output"
 managed_output="$("$out/managed" +p2)"
 printf '%s\n' "$managed_output"
 grep -q 'PHYSICS 42' <<<"$managed_output"
-grep -q 'MULTIFILE CHARM# PASS' <<<"$managed_output"
+grep -q 'MULTIFILE CHARM# PASS: 42' <<<"$managed_output"

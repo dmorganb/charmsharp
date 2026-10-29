@@ -1,8 +1,8 @@
 chare Worker {
 entry:
     Worker() {}
-    void run() {
-        CkPrintf("MULTIFILE CHARM# PASS\n");
+    void run(SharedValue* msg) {
+        CkPrintf("MULTIFILE CHARM# PASS: %d\n", msg->value);
         CkExit();
     }
 };
