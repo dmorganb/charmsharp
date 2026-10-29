@@ -69,8 +69,8 @@ conventions before introducing a multi-file Charm# compiler path.
 The CLI now accepts multiple `.csh` inputs under one module and emits
 one `.ci`, a class header, one registration `.cpp`, and one implementation
 `.cpp` per input. Source files are independently compiled through `--build`,
-and native C++ files can be linked unchanged. Cross-file template and PUPable
-registration remain explicitly unsupported; see below.
+and native C++ files can be linked unchanged. Explicit scalar-chare template registrations and PUPable classes are supported
+and validated by pinned-runtime fixtures; arbitrary cross-file inference is not.
 
 ## Shared-registration implementation
 
@@ -80,9 +80,8 @@ containing transformed parallel/message class definitions, plus a single
 `<module>.def.h`. The per-source C++ translation units include the shared
 class header but **do not** include `.def.h`. This allows each generated
 C++ file to be compiled independently and linked with exactly one registration
-object. The CLI's multi-input `--build` invokes that pipeline. The supported
-subset excludes templated chares and PUPable registration pending shared-header
-and registration validation. Ordinary cross-file C++ header dependencies remain
+object. The CLI's multi-input `--build` invokes that pipeline. The supported subset includes explicitly registered scalar chare templates
+and PUPable declarations, validated with executable multi-PE fixtures. Ordinary cross-file C++ header dependencies remain
 the user's responsibility.
 
 The integrated multi-input `--build` path also accepts ordinary `.cpp`,
@@ -101,27 +100,21 @@ The full legacy compiler/regression suite is also run to guard single-file
 compatibility. More language feature combinations (especially template and
 PUPable registration across inputs) remain open before closing the milestone.
 
-## Audit: unsupported cross-file registration and failure modes
+## Cross-file registration risks and mitigations
 
-The existing single-input template pipeline creates a narrow specialization
-module and template header per input. Aggregating those artifacts without
-reworking ownership would silently drop or duplicate registrations. Similarly,
-PUPable annotations require Charmxi metadata and generated C++ registration
-macros, so moving annotated definitions among translation units cannot be
-assumed correct without native runtime testing. **Both are deliberately
-rejected in the multi-input path**, with negative CLI cases. Existing
-single-source template and PUPable support is unchanged and independently
-regression-tested. Follow-up should test each feature with an independent
-handwritten cross-TU reference and remote serialization before lifting the
-restrictions. Duplicate names and output basenames also have negative tests.
+Template registration must aggregate explicit concrete specializations into one
+Charmxi module, while PUPable classes must be declared before the generated
+proxy interface and registered exactly once. These properties are now exercised
+by pinned-runtime fixtures. Duplicate declarations and output-name collisions
+remain rejected. Automatic discovery of concrete specializations from arbitrary
+other translation units is not implemented; use explicit registrations.
 
 ## PUPable support
 
 Annotated PUPable classes now join the shared class header, while `PUPable`
 interface metadata is aggregated in the common `.ci`. The existing C++
 emitter inserts `PUPable_decl` and the single registration translation unit
-includes `.def.h`. Runtime transfer validation is required before considering
-this feature complete.
+includes `.def.h`. The cross-PE transfer fixture validates deserialization on PE 1.
 
 ## Scalar template registration integration
 
@@ -130,8 +123,8 @@ and the explicit specialization `.ci` module. Template class definitions
 are collected into the common class header, with Charmxi's
 `CK_TEMPLATES_ONLY` glue included once. Registration metadata is emitted in
 a single specializations module and the registry translation unit includes
-its generated `.decl.h` and `.def.h` once. This requires executable pinned
-runtime validation and does not implement automatic cross-file discovery.
+its generated `.decl.h` and `.def.h` once. Executable pinned-runtime validation covers one and two explicitly registered
+chare templates; automatic cross-file specialization discovery remains optional.
 
 ## Cross-file registration validation
 
