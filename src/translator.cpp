@@ -1181,6 +1181,45 @@ SemanticModel analyze(std::string_view source, std::string_view module_name) {
 
 namespace charmsharp {
 
+namespace {
+
+// Locate the emitted class definition by its validated Charm# type name.
+// The lexer ignores comments and literals; braces are balanced structurally.
+std::pair<std::size_t, std::size_t> class_span(std::string_view cpp, std::string_view name) {
+    const auto tokens = detail::tokenize(cpp);
+    for (std::size_t i = 0; i + 2 < tokens.size(); ++i) {
+        if (cpp.substr(tokens[i].begin, tokens[i].end - tokens[i].begin) != "class" ||
+            cpp.substr(tokens[i + 1].begin, tokens[i + 1].end - tokens[i + 1].begin) != name)
+            continue;
+        std::size_t open = i + 2;
+        while (open < tokens.size() &&
+               cpp.substr(tokens[open].begin, tokens[open].end - tokens[open].begin) != "{") {
+            const auto t = cpp.substr(tokens[open].begin, tokens[open].end - tokens[open].begin);
+            if (t == ";") break;
+            ++open;
+        }
+        if (open == tokens.size() ||
+            cpp.substr(tokens[open].begin, tokens[open].end - tokens[open].begin) != "{")
+            continue;
+        int depth = 0;
+        for (std::size_t j = open; j < tokens.size(); ++j) {
+            const auto t = cpp.substr(tokens[j].begin, tokens[j].end - tokens[j].begin);
+            if (t == "{") ++depth;
+            if (t == "}" && --depth == 0) {
+                if (j + 1 == tokens.size() ||
+                    cpp.substr(tokens[j + 1].begin,
+                               tokens[j + 1].end - tokens[j + 1].begin) != ";")
+                    throw Diagnostic("generated class is missing terminating semicolon", 0);
+                return {tokens[i].begin, tokens[j + 1].end};
+            }
+        }
+        throw Diagnostic("unbalanced generated class definition", 0);
+    }
+    throw Diagnostic("cannot find generated class definition for " + std::string(name), 0);
+}
+
+} // namespace
+
 MultiGenerated translate_many(const std::vector<std::string_view>& sources,
                               std::string_view module_name) {
     if (sources.empty()) throw Diagnostic("expected at least one input", 0);
@@ -1188,6 +1227,7 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
     std::string body;
     std::size_t mains = 0;
     std::vector<std::string> declared_names;
+    std::string header = "#pragma once\n#include \"" + std::string(module_name) + ".decl.h\"\n";
     for (auto source : sources) {
         const auto model = detail::analyze(source, module_name);
         const auto register_name = [&](const std::string& name) {
@@ -1198,6 +1238,11 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
         for (const auto& chare : model.parallel_types) register_name(chare.name);
         for (const auto& message : model.messages) register_name(message.name);
         for (const auto& readonly : model.readonly_variables) register_name(readonly.name);
+        if (!model.pupable_classes.empty() || !model.template_registrations.empty())
+            throw Diagnostic("multi-file PUPable and template registration are not yet supported", 0);
+        for (const auto& chare : model.parallel_types)
+            if (!chare.template_declaration.empty())
+                throw Diagnostic("multi-file chare templates require shared-template integration", 0);
 
         const auto generated = translate(source, module_name);
         const auto start = generated.interface_source.find('{');
@@ -1205,18 +1250,49 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
         if (start == std::string::npos || end == std::string::npos || end <= start)
             throw std::logic_error("invalid generated interface module");
         body += generated.interface_source.substr(start + 1, end - start - 1);
-        // The per-file translators produce complete modules; only one mainmodule
-        // designation is permitted when aggregating the interface declarations.
         if (generated.interface_source.rfind("mainmodule ", 0) == 0) ++mains;
-        if (!generated.registration_interface_source.empty() ||
-            !generated.template_header_source.empty())
-            throw Diagnostic("multi-file template registrations require shared-header support", 0);
-        result.cpp_sources.push_back(generated.cpp_source);
+
+        // Preserve user includes in the shared class header; class definitions
+        // may depend on types declared by ordinary project headers.
+        std::size_t line_begin = 0;
+        while (line_begin < source.size()) {
+            const auto line_end = source.find('\n', line_begin);
+            const auto line = source.substr(line_begin,
+                line_end == std::string_view::npos ? source.size() - line_begin :
+                                                     line_end - line_begin);
+            const auto first = line.find_first_not_of(" \t");
+            if (first != std::string_view::npos &&
+                line.substr(first, 8) == "#include")
+                header += std::string(line) + "\n";
+            if (line_end == std::string_view::npos) break;
+            line_begin = line_end + 1;
+        }
+
+        std::string cpp = generated.cpp_source;
+        std::vector<std::pair<std::size_t, std::size_t>> spans;
+        for (const auto& message : model.messages)
+            spans.push_back(class_span(cpp, message.name));
+        for (const auto& chare : model.parallel_types)
+            spans.push_back(class_span(cpp, chare.name));
+        std::sort(spans.begin(), spans.end());
+        for (const auto& [begin, finish] : spans)
+            header += cpp.substr(begin, finish - begin) + "\n";
+        for (auto i = spans.rbegin(); i != spans.rend(); ++i)
+            cpp.erase(i->first, i->second - i->first);
+        const std::string def_include = "#include \"" + std::string(module_name) + ".def.h\"\n";
+        if (cpp.size() < def_include.size() ||
+            cpp.substr(cpp.size() - def_include.size()) != def_include)
+            throw std::logic_error("expected generated module registration footer");
+        cpp.erase(cpp.size() - def_include.size());
+        cpp.insert(0, "#include \"" + std::string(module_name) + "_classes.h\"\n");
+        result.cpp_sources.push_back(std::move(cpp));
     }
     if (mains > 1) throw Diagnostic("multiple mainchares across input files", 0);
     result.interface_source = std::string(mains == 1 ? "mainmodule " : "module ") +
                               std::string(module_name) + " {\n" + body + "};\n";
+    result.shared_header_source = std::move(header);
+    result.registration_cpp_source = "#include \"" + std::string(module_name) +
+        "_classes.h\"\n#include \"" + std::string(module_name) + ".def.h\"\n";
     return result;
 }
-
 } // namespace charmsharp

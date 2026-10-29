@@ -21,15 +21,15 @@ EOF
 test -f "$tmp/generated/Simulation.ci"
 test -f "$tmp/generated/Main.cpp"
 test -f "$tmp/generated/Worker.cpp"
+test -f "$tmp/generated/Simulation_classes.h"
+test -f "$tmp/generated/Simulation_registry.cpp"
+grep -q 'class Worker' "$tmp/generated/Simulation_classes.h"
+! grep -q 'Simulation.def.h' "$tmp/generated/Worker.cpp"
 grep -q 'mainmodule Simulation' "$tmp/generated/Simulation.ci"
 grep -q 'mainchare Main' "$tmp/generated/Simulation.ci"
 grep -q 'chare Worker' "$tmp/generated/Simulation.ci"
 if "$compiler" --module Simulation --out-dir "$tmp/generated" "$tmp/Main.csh" "$tmp/Worker.csh" >"$tmp/log" 2>&1; then
   echo 'missing overwrite protection' >&2
-  exit 1
-fi
-if "$compiler" --build --module Simulation --out-dir "$tmp/generated" "$tmp/Main.csh" "$tmp/Worker.csh" >"$tmp/log" 2>&1; then
-  echo 'multi-file --build should not pretend to work' >&2
   exit 1
 fi
 cp "$tmp/Main.csh" "$tmp/Duplicate.csh"

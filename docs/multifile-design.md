@@ -75,3 +75,16 @@ linked from multiple translation units. In other words, current output is an
 intermediate representation for implementing registration ownership, **not yet
 a usable multi-file executable pipeline**. Templates remain excluded from
 this first multi-input path.
+
+## Shared-registration implementation
+
+The multi-input compiler path now emits one shared `<module>_classes.h`
+containing transformed parallel/message class definitions, plus a single
+`<module>_registry.cpp` that includes the shared header followed by
+`<module>.def.h`. The per-source C++ translation units include the shared
+class header but **do not** include `.def.h`. This allows each generated
+C++ file to be compiled independently and linked with exactly one registration
+object. The CLI's multi-input `--build` invokes that pipeline. The supported
+subset excludes templated chares and PUPable registration pending shared-header
+and registration validation. Ordinary cross-file C++ header dependencies remain
+the user's responsibility.
