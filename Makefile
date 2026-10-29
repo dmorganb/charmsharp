@@ -20,6 +20,7 @@ test: build/tests build/charmsharp
 	./build/tests
 	sh tests/cli_smoke.sh ./build/charmsharp examples/Counter.csh
 	sh tests/build_cli.sh ./build/charmsharp examples/Hello.csh
+	sh tests/multifile_cli.sh ./build/charmsharp
 
 charm-check: build/charmsharp
 	sh tests/charm_smoke.sh ./build/charmsharp examples/Counter.csh

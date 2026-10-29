@@ -1187,7 +1187,18 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
     MultiGenerated result;
     std::string body;
     std::size_t mains = 0;
+    std::vector<std::string> declared_names;
     for (auto source : sources) {
+        const auto model = detail::analyze(source, module_name);
+        const auto register_name = [&](const std::string& name) {
+            if (std::find(declared_names.begin(), declared_names.end(), name) != declared_names.end())
+                throw Diagnostic("duplicate Charm# declaration across input files: " + name, 0);
+            declared_names.push_back(name);
+        };
+        for (const auto& chare : model.parallel_types) register_name(chare.name);
+        for (const auto& message : model.messages) register_name(message.name);
+        for (const auto& readonly : model.readonly_variables) register_name(readonly.name);
+
         const auto generated = translate(source, module_name);
         const auto start = generated.interface_source.find('{');
         const auto end = generated.interface_source.rfind("};");
