@@ -299,8 +299,11 @@ You may instead compile these outputs separately using a Makefile; see
 `tests/multifile/charmsharp_build.sh`. The legacy single-input output remains
 unchanged.
 
-Limitations: shared-module aggregation currently excludes templated chares and
-PUPable registrations, requires type/header dependencies to be provided in
-ordinary project headers, and does not infer arbitrary cross-file declarations.
+Shared-module aggregation now supports the already validated subset of scalar
+chare templates with **explicit** concrete-specialization registration and
+PUPable declarations; see pinned multi-PE runtime fixtures. It does not
+automatically discover arbitrary cross-file specializations, and requires
+type/header dependencies to be supplied using ordinary project headers.
+General cross-module declarations are still outside this multi-input path.
 For different Charm++ modules, continue to use separate invocations. Native
 Make/CMake remains responsible for dependency tracking and incremental builds.

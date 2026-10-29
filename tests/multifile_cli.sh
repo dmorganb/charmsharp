@@ -37,18 +37,6 @@ if "$compiler" --force --module Simulation --out-dir "$tmp/generated" "$tmp/Main
   echo 'duplicate mainchare was accepted' >&2
   exit 1
 fi
-cat >"$tmp/Template.csh" <<'EOF'
-template<typename T>
-chare GenericWorker {
-entry:
-    GenericWorker() {}
-};
-EOF
-if "$compiler" --module Simulation --out-dir "$tmp/templateout" "$tmp/Main.csh" "$tmp/Template.csh" >"$tmp/log" 2>&1; then
-  echo 'unsupported cross-file templated chare was accepted' >&2
-  exit 1
-fi
-grep -q 'multi-file chare templates' "$tmp/log"
 cat >"$tmp/Repeated.csh" <<'EOF'
 chare Worker {
 entry:

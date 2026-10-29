@@ -132,3 +132,19 @@ are collected into the common class header, with Charmxi's
 a single specializations module and the registry translation unit includes
 its generated `.decl.h` and `.def.h` once. This requires executable pinned
 runtime validation and does not implement automatic cross-file discovery.
+
+## Cross-file registration validation
+
+The multi-file PUPable fixture defines an annotated `PUP::able` class in a
+separate source from a group entry that transfers `std::shared_ptr<State>`
+across processing elements. The generated interface contains `PUPable State`,
+and the shared class header includes the generated `PUPable_decl`. The
+pinned-runtime executable expects to deserialize the value on PE 1.
+
+The explicit scalar-template fixture defines `GenericWorker<T>` in one
+`.csh` and uses `CProxy_GenericWorker<int>` in another, with
+`template chare GenericWorker<int>;` supplied in the defining source. A second
+fixture combines multiple definitions and concrete registrations into the
+single specialization module. This is **not** general cross-file automatic
+specialization discovery. Source order and external C++ dependencies remain
+subject to the native toolchain.
