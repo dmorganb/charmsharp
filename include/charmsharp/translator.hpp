@@ -11,6 +11,7 @@ struct Generated {
     std::string interface_source;
     std::string cpp_source;
     std::string registration_interface_source; // Optional separate Charm++ module.
+    std::string template_header_source; // Optional shared class-template definitions.
 };
 
 class Diagnostic : public std::runtime_error {

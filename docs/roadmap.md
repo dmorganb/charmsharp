@@ -327,3 +327,25 @@ see [SDAG variable lifetime](sdag-variable-lifetime.md).
   against Charm++ v8.0.0. Expand only where semantics are confirmed.
 - **6.3.4e (next):** Audit language coverage and explicitly document remaining
   user-defined/nested/dependent argument and multi-TU limits before closing phase.
+
+### 6.3.4c — Cross-translation-unit template validation
+
+- Test a standalone Charm# file containing a template definition and an
+  explicit `template chare Worker<int>;` registration, plus a separately
+  compiled ordinary C++ source file that uses `CProxy_Worker<int>`.
+- Validate that the generated primary and specialization `.ci` modules, the
+  generated C++ implementation, and the independent C++ consumer can compile,
+  link and execute through pinned Charm++ v8.0.0.
+- The current CLI translates and optionally builds **one** `.csh` source at
+  a time. Auto-discovery cannot see uses in another source file. The explicit
+  registration is therefore required in the definition unit; no whole-program
+  analysis, globally shared specialization database, or multi-file build command
+  is implied by this test.
+- Generate `<module>_templates.h` containing complete template definitions
+  and a guarded `CK_TEMPLATES_ONLY` inclusion of `<module>.def.h` after the
+  definitions. Include this header in both the producer and independent C++
+  consumers, while retaining the ordinary `.def.h` inclusion in one producer.
+- Keep runtime registrations in `<module>_specializations.ci`; no separate
+  `specializations.h` file is required. Template class definitions presently
+  must be self-contained enough to move to the shared header; arbitrary
+  dependencies on prior local C++ definitions remain unsupported.
