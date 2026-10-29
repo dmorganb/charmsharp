@@ -1229,7 +1229,8 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
     bool has_templates = false;
     std::size_t mains = 0;
     std::vector<std::string> declared_names;
-    std::string header = "#pragma once\n#include <memory>\n#include \"" + std::string(module_name) + ".decl.h\"\n";
+    std::string header = "#pragma once\n#include <memory>\n";
+    std::string pup_forwards;
     for (auto source : sources) {
         const auto model = detail::analyze(source, module_name);
         const auto register_name = [&](const std::string& name) {
@@ -1240,6 +1241,8 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
         for (const auto& chare : model.parallel_types) register_name(chare.name);
         for (const auto& message : model.messages) register_name(message.name);
         for (const auto& readonly : model.readonly_variables) register_name(readonly.name);
+        for (const auto& pupable : model.pupable_classes)
+            pup_forwards += "class " + pupable.name + ";\n";
 
         const auto generated = translate(source, module_name);
         const auto start = generated.interface_source.find('{');
@@ -1339,6 +1342,9 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
     if (has_templates)
         header += "#define CK_TEMPLATES_ONLY\n#include \"" +
             std::string(module_name) + ".def.h\"\n#undef CK_TEMPLATES_ONLY\n";
+    header.insert(header.find("\n") + 1, pup_forwards);
+    header.insert(header.find("\n") + 1 + pup_forwards.size(),
+                  "#include \"" + std::string(module_name) + ".decl.h\"\n");
     result.shared_header_source = std::move(header);
     if (!specializations.empty())
         result.specialization_interface_source =
