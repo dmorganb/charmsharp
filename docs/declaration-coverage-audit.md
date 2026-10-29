@@ -45,7 +45,7 @@ supported.
 | `class Name;` in `.ci` | **D** | Explicit interface forward declaration distinct from ordinary C++ `class`. |
 | `extern module`, `extern` entity/entry, `include` | **D** | Multi-module generated-header dependencies, reachable module registration, externally declared entries. |
 | `PUPable Class;` | **D** | Runtime serialization polymorphism/registration; should integrate with existing `PUPable_decl` C++ conventions. |
-| `initnode`, `initproc` | **D** | Global and class-static startup registration hooks; `initcall` is deprecated. |
+| `initnode`, `initproc` | **R, limited (7.3)** | Global void free-function definitions via Charm# attributes; pinned v8.0.0 invocation count and startup-order comparison validated. Class-static, qualified, templated and accelerator forms deferred; `initcall` deprecated. |
 | Chare attributes `[migratable]`, `[python]`; array `[python]` | **D** | Pinned grammar recognizes these; placement/semantics need validation. |
 | Preprocessor-conditionals around interface declarations | **D** | Charm# rejects conditional parallel declarations; ordinary C++ directives remain pass-through. |
 

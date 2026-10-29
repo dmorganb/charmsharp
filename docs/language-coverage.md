@@ -46,7 +46,7 @@ This page summarizes current implementation and its boundaries.
   non-chare parallel inheritance and complex base specifiers are deferred.
   Any inheritance on templated chares is explicitly rejected until shared-header
   base resolution and Charmxi template inheritance semantics are verified.
-- **Interface constructs:** `initnode`, `initproc`, `PUPable`,
+- **Interface constructs:** `PUPable`,
   `extern module`, `include`, general template entities (beyond scalar chare declarations), `.ci` namespaces,
   chare attributes and module dependency tracking lack native Charm# lowering.
 - **Source/build model:** One module per input, no dependency discovery,
@@ -77,3 +77,9 @@ See the [Phase 6.3 template audit](chare-template-coverage-audit.md) for the
 test-by-test evidence matrix, deferred user-defined/nested/dependent arguments,
 header dependencies, inheritance restrictions, and the resolved
 `template chare Main` convention interaction (now explicitly rejected).
+
+### Phase 7.3 — Initialization hook slice
+
+Top-level `[[charm::initnode]] void name() { ... }` and `[[charm::initproc]] void name() { ... }` lower to native .ci registrations while retaining ordinary C++ definitions. Duplicate, non-void, parameterized, nested and declaration-only hooks are rejected. The pinned v8.0.0 runtime integration test compares node/PE invocation counts against a separately handwritten Charm++ program. Multi-node distinct-host behavior is not exercised by the two-PE multicore fixture.
+
+Validated Phase 7.3 reference: [initialization hook runtime test](init-hooks-validation.md). The multicore fixture exercises one node and two PEs.

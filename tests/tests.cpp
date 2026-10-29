@@ -798,6 +798,30 @@ entry:
     contains(alone.interface_source, "module Globals {\n    readonly int size;");
 }
 
+void init_hook_attributes() {
+    const auto result = charmsharp::translate(R"SRC(
+[[charm::initnode]]
+void initializeNode() { CkPrintf("Node\\n"); }
+[[charm::initproc]]
+void initializeProcessor(void) { CkPrintf("PE\\n"); }
+)SRC", "InitHooks");
+    contains(result.interface_source, "initnode void initializeNode();");
+    contains(result.interface_source, "initproc void initializeProcessor();");
+    contains(result.cpp_source, "void initializeNode() {");
+    contains(result.cpp_source, "void initializeProcessor(void) {");
+    ++checks;
+    if (result.cpp_source.find("[[charm::") != std::string::npos)
+        throw std::runtime_error("init hook attribute leaked into C++ output");
+    rejects("[[charm::initnode]] int bad() {}", "top-level void");
+    rejects("[[charm::initproc]] void bad(int x) {}", "no parameters");
+    rejects("[[charm::initproc]] void bad();", "function body");
+    rejects("[[charm::initnode]] void f() {} [[charm::initproc]] void f() {}",
+            "duplicate Charm# init hook");
+    rejects("namespace N { [[charm::initproc]] void f() {} }", "top-level");
+    rejects("[[charm::initnode]] void f() {} [[charm::initproc, other]] void g() {}",
+            "expected [[charm");
+}
+
 void readonly_message_pointers() {
     const auto result = charmsharp::translate(R"SRC(message Settings {
 public:
@@ -1430,6 +1454,7 @@ int main() {
     variable_size_message_arrays();
     readonly_globals();
     readonly_message_pointers();
+    init_hook_attributes();
     ordinary_inheritance();
     message_inheritance();
     parallel_inheritance();
