@@ -92,6 +92,7 @@ struct ReadonlyDeclaration {
     std::string type_name;
     std::string name;
     std::optional<std::string> array_bound;
+    bool is_message = false; // A pointer to a previously declared Charm# message.
     SourceRange declarator; // Original type, name and optional bound; no ';'.
     SourceRange source;
 };
