@@ -1,5 +1,6 @@
 #include "charmsharp/translator.hpp"
 
+#include <algorithm>
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
@@ -65,7 +66,7 @@ void write_file(const fs::path& path, const std::string& content) {
 } // namespace
 
 int main(int argc, char** argv) {
-    fs::path input_path;
+    std::vector<fs::path> input_paths;
     fs::path output_dir = ".";
     std::string module;
     bool force = false;
@@ -84,35 +85,70 @@ int main(int argc, char** argv) {
         } else if (arg == "--help") {
             usage();
             return 0;
-        } else if (!arg.empty() && arg[0] != '-' && input_path.empty()) {
-            input_path = arg;
+        } else if (!arg.empty() && arg[0] != '-') {
+            input_paths.emplace_back(arg);
         } else {
             usage();
             return 2;
         }
     }
-    if (input_path.empty() || (!build && !executable.empty())) {
+    if (input_paths.empty() || (!build && !executable.empty())) {
         usage();
         return 2;
     }
-    if (module.empty()) module = input_path.stem().string();
+    if (module.empty()) module = input_paths.front().stem().string();
 
     try {
+        if (build && input_paths.size() > 1)
+            throw std::runtime_error("multi-file --build requires shared registration support; use a project Makefile for now");
         if (build) {
             executable = fs::absolute(executable.empty() ? fs::path(module) : executable);
             if (!force && fs::exists(executable))
                 throw std::runtime_error("executable exists; use --force to overwrite");
         }
-        const auto source = read_file(input_path);
+        const auto source = read_file(input_paths.front());
         charmsharp::Generated generated;
         try {
             generated = charmsharp::translate(source, module);
         } catch (const charmsharp::Diagnostic& error) {
-            std::cerr << input_path.string() << ':'
+            std::cerr << input_paths.front().string() << ':'
                       << charmsharp::format_diagnostic(source, error) << '\n';
             return 1;
         }
 
+        if (input_paths.size() > 1) {
+            std::vector<std::string> source_texts;
+            std::vector<std::string_view> views;
+            for (const auto& path : input_paths) source_texts.push_back(read_file(path));
+            for (const auto& text : source_texts) views.push_back(text);
+            charmsharp::MultiGenerated combined;
+            try {
+                combined = charmsharp::translate_many(views, module);
+            } catch (const charmsharp::Diagnostic& error) {
+                std::cerr << "charmsharp: multi-file: " << error.what() << '\n';
+                return 1;
+            }
+            const auto ci = output_dir / (module + ".ci");
+            std::vector<fs::path> outputs{ci};
+            for (const auto& path : input_paths) {
+                const auto cpp = output_dir / (path.stem().string() + ".cpp");
+                if (cpp == ci || std::find(outputs.begin(), outputs.end(), cpp) != outputs.end())
+                    throw std::runtime_error("duplicate multi-file output basename: " + cpp.string());
+                outputs.push_back(cpp);
+            }
+            if (!force)
+                for (const auto& output : outputs)
+                    if (fs::exists(output))
+                        throw std::runtime_error("output exists; use --force to overwrite");
+            fs::create_directories(output_dir);
+            write_file(ci, combined.interface_source);
+            std::cout << ci << '\n';
+            for (std::size_t i = 0; i < input_paths.size(); ++i) {
+                write_file(outputs[i + 1], combined.cpp_sources[i]);
+                std::cout << outputs[i + 1] << '\n';
+            }
+            return 0;
+        }
         const auto ci_path = output_dir / (module + ".ci");
         const auto cpp_path = output_dir / (module + ".cpp");
         const auto registration_path = output_dir / (module + "_specializations.ci");
@@ -139,7 +175,7 @@ int main(int argc, char** argv) {
             run_charmc(output_dir, {module + ".ci"});
             if (!generated.registration_interface_source.empty())
                 run_charmc(output_dir, {module + "_specializations.ci"});
-            run_charmc(output_dir, {module + ".cpp", "-I" + fs::absolute(input_path).parent_path().string(),
+            run_charmc(output_dir, {module + ".cpp", "-I" + fs::absolute(input_paths.front()).parent_path().string(),
                                     "-o", executable.string()});
             std::cout << executable << '\n';
         }

@@ -1178,3 +1178,34 @@ SemanticModel analyze(std::string_view source, std::string_view module_name) {
 
 } // namespace charmsharp
 
+
+namespace charmsharp {
+
+MultiGenerated translate_many(const std::vector<std::string_view>& sources,
+                              std::string_view module_name) {
+    if (sources.empty()) throw Diagnostic("expected at least one input", 0);
+    MultiGenerated result;
+    std::string body;
+    std::size_t mains = 0;
+    for (auto source : sources) {
+        const auto generated = translate(source, module_name);
+        const auto start = generated.interface_source.find('{');
+        const auto end = generated.interface_source.rfind("};");
+        if (start == std::string::npos || end == std::string::npos || end <= start)
+            throw std::logic_error("invalid generated interface module");
+        body += generated.interface_source.substr(start + 1, end - start - 1);
+        // The per-file translators produce complete modules; only one mainmodule
+        // designation is permitted when aggregating the interface declarations.
+        if (generated.interface_source.rfind("mainmodule ", 0) == 0) ++mains;
+        if (!generated.registration_interface_source.empty() ||
+            !generated.template_header_source.empty())
+            throw Diagnostic("multi-file template registrations require shared-header support", 0);
+        result.cpp_sources.push_back(generated.cpp_source);
+    }
+    if (mains > 1) throw Diagnostic("multiple mainchares across input files", 0);
+    result.interface_source = std::string(mains == 1 ? "mainmodule " : "module ") +
+                              std::string(module_name) + " {\n" + body + "};\n";
+    return result;
+}
+
+} // namespace charmsharp
