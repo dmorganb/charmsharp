@@ -114,3 +114,11 @@ single-source template and PUPable support is unchanged and independently
 regression-tested. Follow-up should test each feature with an independent
 handwritten cross-TU reference and remote serialization before lifting the
 restrictions. Duplicate names and output basenames also have negative tests.
+
+## PUPable support
+
+Annotated PUPable classes now join the shared class header, while `PUPable`
+interface metadata is aggregated in the common `.ci`. The existing C++
+emitter inserts `PUPable_decl` and the single registration translation unit
+includes `.def.h`. Runtime transfer validation is required before considering
+this feature complete.

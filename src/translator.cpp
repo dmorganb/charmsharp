@@ -1227,7 +1227,7 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
     std::string body;
     std::size_t mains = 0;
     std::vector<std::string> declared_names;
-    std::string header = "#pragma once\n#include \"" + std::string(module_name) + ".decl.h\"\n";
+    std::string header = "#pragma once\n#include <memory>\n#include \"" + std::string(module_name) + ".decl.h\"\n";
     for (auto source : sources) {
         const auto model = detail::analyze(source, module_name);
         const auto register_name = [&](const std::string& name) {
@@ -1238,8 +1238,6 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
         for (const auto& chare : model.parallel_types) register_name(chare.name);
         for (const auto& message : model.messages) register_name(message.name);
         for (const auto& readonly : model.readonly_variables) register_name(readonly.name);
-        if (!model.pupable_classes.empty())
-            throw Diagnostic("multi-file PUPable registration is not yet supported", 0);
         if (!model.template_registrations.empty())
             throw Diagnostic("multi-file template specialization registration is not yet supported", 0);
         for (const auto& chare : model.parallel_types)
@@ -1274,6 +1272,8 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
         std::vector<std::pair<std::size_t, std::size_t>> spans;
         for (const auto& message : model.messages)
             spans.push_back(class_span(cpp, message.name));
+        for (const auto& pupable : model.pupable_classes)
+            spans.push_back(class_span(cpp, pupable.name));
         for (const auto& chare : model.parallel_types)
             spans.push_back(class_span(cpp, chare.name));
         std::sort(spans.begin(), spans.end());

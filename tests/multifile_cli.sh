@@ -49,19 +49,6 @@ if "$compiler" --module Simulation --out-dir "$tmp/templateout" "$tmp/Main.csh" 
   exit 1
 fi
 grep -q 'multi-file chare templates' "$tmp/log"
-cat >"$tmp/Pup.csh" <<'EOF'
-[[charm::pupable]]
-class Payload : public PUP::able {
-public:
-    Payload(CkMigrateMessage* m) : PUP::able(m) {}
-    void pup(PUP::er& p) override { PUP::able::pup(p); }
-};
-EOF
-if "$compiler" --module Simulation --out-dir "$tmp/pupout" "$tmp/Main.csh" "$tmp/Pup.csh" >"$tmp/log" 2>&1; then
-  echo 'unsupported cross-file PUPable registration was accepted' >&2
-  exit 1
-fi
-grep -q 'multi-file PUPable' "$tmp/log"
 cat >"$tmp/Repeated.csh" <<'EOF'
 chare Worker {
 entry:
