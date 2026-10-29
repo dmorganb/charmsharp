@@ -746,9 +746,37 @@ public:
     equal(generated.cpp_source, std::string("#include \"M.decl.h\"\nclass Payload : public CMessage_Payload ") +
           body + "\n#include \"M.def.h\"\n");
     equal(generated.interface_source, "module M {\n    message Payload;\n};\n");
-    rejects("message M { int values[]; };", "variable-size message arrays");
-    rejects("message M { int value, values[]; };", "variable-size message arrays");
+    rejects("message M { int* values[]; };", "standalone primitive");
+    rejects("message M { int value, values[]; };", "standalone primitive");
     rejects("message M { entry: void f(); };", "entry: is only valid");
+}
+
+void variable_size_message_arrays() {
+    const auto result = charmsharp::translate(R"SRC(message DataMessage {
+    int count;
+private:
+    double values[];
+public:
+    int indices[];
+    int fixed[4];
+    int sum() const { return count + indices[0] + fixed[0]; }
+};
+)SRC", "VarMsg");
+    contains(result.interface_source, "message DataMessage {\n        double values[];\n        int indices[];\n    };");
+    contains(result.cpp_source, "friend class CMessage_DataMessage;");
+    contains(result.cpp_source, "double *values;");
+    contains(result.cpp_source, "int *indices;");
+    contains(result.cpp_source, "int count;");
+    contains(result.cpp_source, "int fixed[4];");
+    contains(result.cpp_source, "int sum() const { return count + indices[0] + fixed[0]; }");
+    const auto single = charmsharp::translate(
+        "message One { public: float numbers[]; };", "OneMsg");
+    contains(single.interface_source, "float numbers[];");
+    contains(single.cpp_source, "float *numbers;");
+    rejects("message Bad { float* numbers[]; };", "standalone primitive");
+    rejects("message Bad { std::string numbers[]; };", "standalone primitive");
+    rejects("message Bad { int first[], second[]; };", "standalone primitive");
+    rejects("message Bad { double numbers[] = {}; };", "standalone primitive");
 }
 
 void readonly_globals() {
@@ -1322,7 +1350,7 @@ void diagnostics() {
     rejects("struct Base {}; message M : Base, Base {};", "duplicate base");
     rejects("struct Base {}; message M : Base<int> {};", "complex base");
     rejects("message M : public Later {}; struct Later {};", "later-defined");
-    rejects("message M { int values[]; };", "variable-size message arrays");
+    rejects("message M { int* values[]; };", "standalone primitive");
     rejects("message M { entry: void foo(); };", "entry: is only valid");
     rejects("message M {}; message M {};", "duplicate");
     rejects("message M {}; chare M {};", "duplicate");
@@ -1374,6 +1402,7 @@ int main() {
     sdag_array_edits_do_not_overlap();
     fixed_size_messages();
     message_methods_preserve_ordinary_cpp();
+    variable_size_message_arrays();
     readonly_globals();
     ordinary_inheritance();
     message_inheritance();

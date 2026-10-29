@@ -33,7 +33,7 @@ supported.
 | `group`, `nodegroup` | **R** | Basic constructors and entries; specialized flags not generated. |
 | `array [1D]`, `array [2D]` | **R** | Other numeric dimensions lexed, but not individually integration-tested; named index types unsupported. |
 | `message M;` (fixed-size) | **R, limited** | `message M { ... };` emits `message M;` plus C++ `CMessage_M` class; no field-level serialization/lifetime proof. |
-| Variable-size `message` with `T field[]` | **D** | Needs `.ci` field metadata, matching C++ pointer layout, allocator sizing, serialization/ownership tests. |
+| Variable-size `message` with `T field[]` | **T (7.1 in progress)** | Restricted primitive member lowering, ordered `.ci` metadata and C++ pointers; requires pinned-runtime validation before R classification. |
 | Message attributes `[packed]`, `[varsize]`; `conditional` fields | **D** | Present in pinned parser; `packed`/`varsize` are parsed as compatibility no-ops in v8.0.0 grammar. Not a reason to implement them early. |
 | `readonly Type x;` and `readonly Type a[N];` | **R, limited** | Single-token types; decimal fixed bounds; runtime initialization in mainchare. Complex types, multidimensional bounds and declaration initializers unsupported. |
 | `readonly message M *x;` | **D** | Requires explicit message-pointer handling and initialization on PEs. |

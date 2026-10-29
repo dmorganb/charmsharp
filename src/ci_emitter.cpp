@@ -120,8 +120,16 @@ std::string emit_ci(std::string_view source, const SemanticModel& model) {
                      model.module_name + " {\n";
     if (!model.template_registrations.empty())
         ci += "    extern module " + model.module_name + "_specializations;\n";
-    for (const auto& message : model.messages)
-        ci += "    message " + message.name + ";\n";
+    for (const auto& message : model.messages) {
+        if (message.variable_arrays.empty()) {
+            ci += "    message " + message.name + ";\n";
+            continue;
+        }
+        ci += "    message " + message.name + " {\n";
+        for (const auto& field : message.variable_arrays)
+            ci += "        " + field.type_name + " " + field.name + "[];\n";
+        ci += "    };\n";
+    }
     for (const auto& readonly : model.readonly_variables)
         ci += "    readonly " + std::string(trim(slice(source, readonly.declarator))) + ";\n";
     for (const auto& chare : model.parallel_types) {

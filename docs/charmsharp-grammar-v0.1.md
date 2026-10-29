@@ -445,3 +445,7 @@ rather than generating an unsupported templated mainchare.
 See [the template coverage audit](chare-template-coverage-audit.md) for precise
 evidence and remaining work. Earlier Phase 6.3.1 and 6.3.2 sections document
 the incremental design, not the latest complete implementation status.
+
+### Phase 7.1 — Variable-size message fields (restricted)
+
+A message body may contain standalone `T name[];` member declarations, where `T` is one of `char`, `short`, `int`, `long`, `float`, or `double`. The source order defines allocation argument order for Charm++ `new (count1, count2) Message`. Charm# emits those fields as ordered `.ci` metadata, rewrites their C++ declarations to pointer members, and grants the generated `CMessage_Name` friend access. Fixed-size members, ordinary methods and supported ordinary inheritance stay in C++. Aliases, user-defined/qualified types, compound declarators, conditional fields and custom serialization remain out of scope; Charmxi supplies allocation and packing. The grammar does not parse arbitrary C++ field declarations.

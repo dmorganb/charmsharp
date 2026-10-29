@@ -72,12 +72,20 @@ struct ParallelDeclaration {
     std::vector<EntryDeclaration> entries;
 };
 
+struct MessageArrayField {
+    std::string type_name;
+    std::string name;
+    SourceRange name_source;
+    SourceRange suffix;
+};
+
 struct MessageDeclaration {
     std::string name;
     std::string ordinary_bases;
     SourceRange source;
     SourceRange name_source;
     std::size_t opening_brace = 0;
+    std::vector<MessageArrayField> variable_arrays;
 };
 
 struct ReadonlyDeclaration {
