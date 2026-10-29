@@ -31,8 +31,8 @@ prohibits a construct.
 | --- | --- | --- |
 | General C++ parsing, type inference, overload resolution or ABI/layout checking | **Not implemented** | The structural parser recognizes only targeted Charm# patterns; use Charmxi and the chosen C++ compiler for semantic validation. |
 | Parallel declarations inside namespaces, class scopes, or preprocessor conditionals | **Rejected** | Put the supported Charm# interface declaration at file scope outside conditional branches. Ordinary C++ constructs remain pass-through. |
-| Multiple Charm++ modules, `.ci extern module`/`include` and dependency graph discovery | **Not implemented** | One primary module per input; external module interfaces require existing Charm++ integration/workflow. The template specialization helper module is generated only for its narrow use case. |
-| Whole-program analysis and cross-file declaration discovery | **Not implemented** | Each invocation sees one `.csh` file, with documented explicit template-registration fallback. |
+| Multiple Charm++ modules, `.ci extern module`/`include` and dependency graph discovery | **Not implemented** | Multiple `.csh` inputs can now form **one shared module**, but cross-module interface discovery is still not implemented. The template specialization helper module is generated only for its narrow use case. |
+| Whole-program analysis and cross-file declaration discovery | **Not implemented** | A shared-module invocation accepts several `.csh` inputs, validates declared-name collisions, and merges interface metadata. It does not infer arbitrary C++ cross-file dependencies; templates and PUPable registration are not supported on this multi-input path. |
 | Source maps and generated `#line` directives | **Not implemented** | Downstream C++/Charmxi diagnostics can refer to generated source locations. |
 | Native Charmxi/XI-Builder backend | **Not implemented** | Charm# emits text-based `.ci` and C++ then invokes the ordinary Charm++ toolchain; there is no new runtime. |
 

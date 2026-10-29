@@ -95,3 +95,12 @@ them with the generated objects. The source files are **not** rewritten or
 transpiled. The end-to-end fixture verifies both explicit Make-style linking
 and the integrated build driver. Build dependency tracking beyond invoking the
 compiler remains the responsibility of Make/CMake.
+
+## Validation status
+
+A real multi-source Charm# fixture and separate native `Physics.cpp` fixture
+are exercised under Charm++ v8.0.0 in the repository CI. The script tests
+manual per-TU compile/link **and** the integrated multi-input `--build` path.
+The full legacy compiler/regression suite is also run to guard single-file
+compatibility. More language feature combinations (especially template and
+PUPable registration across inputs) remain open before closing the milestone.

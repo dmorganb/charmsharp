@@ -272,3 +272,35 @@ validated. It would retain Charm++'s generated C++ bindings and existing
 runtime.
 
 
+
+## Multi-file applications (shared Charm++ module)
+
+The multi-input compiler path accepts multiple `.csh` source files under one
+module name and emits one `.ci`, a shared generated class header, separate
+C++ implementation files, and a single module-registration source:
+
+```sh
+charmsharp --module Simulation --out-dir generated Main.csh Worker.csh
+```
+
+`--build` additionally compiles and links native C++ sources, which are passed
+to `charmc` unchanged:
+
+```sh
+charmsharp --build --module Simulation --out-dir generated \
+  Main.csh Worker.csh Physics.cpp -o simulation
+```
+
+Generated files: `Simulation.ci`, `Simulation_classes.h`,
+`Simulation_registry.cpp`, `Main.cpp` and `Worker.cpp`. The shared class
+header is needed so generated registration code sees every parallel class.
+The module's `.def.h` is included **only** by `Simulation_registry.cpp`.
+You may instead compile these outputs separately using a Makefile; see
+`tests/multifile/charmsharp_build.sh`. The legacy single-input output remains
+unchanged.
+
+Limitations: shared-module aggregation currently excludes templated chares and
+PUPable registrations, requires type/header dependencies to be provided in
+ordinary project headers, and does not infer arbitrary cross-file declarations.
+For different Charm++ modules, continue to use separate invocations. Native
+Make/CMake remains responsible for dependency tracking and incremental builds.
