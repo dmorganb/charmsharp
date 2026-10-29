@@ -176,7 +176,7 @@ jobs:
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
           make charm-message
 
-      - name: Validate variable-size message allocation and cross-PE transfer
+      - name: Compare variable-size message transfer against handwritten Charm++
         run: |
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
           make charm-variable-message

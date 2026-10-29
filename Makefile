@@ -113,4 +113,4 @@ clean:
 
 
 charm-variable-message: build/charmsharp
-	sh tests/charm_run.sh ./build/charmsharp examples/VariableMessage.csh VariableMessage 'Variable message: PASS on PE 1'
+	sh tests/variable_message_integration.sh ./build/charmsharp
