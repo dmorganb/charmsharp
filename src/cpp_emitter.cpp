@@ -96,6 +96,8 @@ std::string emit_template_header(std::string_view source, const SemanticModel& m
 
 std::string emit_cpp(std::string_view source, const SemanticModel& model) {
     std::vector<Edit> edits;
+    for (const auto& hook : model.init_hooks)
+        edits.push_back({hook.attribute.begin, hook.attribute.end, ""});
     for (const auto& registration : model.template_registrations)
         edits.push_back({registration.source.begin, registration.source.end, ""});
     for (const auto& readonly : model.readonly_variables)

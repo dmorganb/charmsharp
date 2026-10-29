@@ -1,0 +1,7 @@
+mainmodule InitHooks {
+    initnode void initializeNode();
+    initproc void initializeProcessor();
+    mainchare Main {
+        entry Main(CkArgMsg* args);
+    };
+};

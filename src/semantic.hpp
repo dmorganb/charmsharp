@@ -97,6 +97,12 @@ struct ReadonlyDeclaration {
     SourceRange source;
 };
 
+struct InitHookDeclaration {
+    std::string name;
+    bool node_level = false;
+    SourceRange attribute;
+};
+
 struct TemplateRegistration {
     std::string name;
     std::string arguments; // Including angle brackets, e.g. <int>.
@@ -110,6 +116,7 @@ struct SemanticModel {
     std::vector<TemplateRegistration> template_registrations;
     std::vector<MessageDeclaration> messages;
     std::vector<ReadonlyDeclaration> readonly_variables;
+    std::vector<InitHookDeclaration> init_hooks;
     std::vector<MarshalledArray> marshalled_arrays;
 };
 

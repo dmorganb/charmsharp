@@ -453,3 +453,7 @@ A message body may contain standalone `T name[];` member declarations, where `T`
 ### Phase 7.2 — Readonly message pointers
 
 `readonly M* name;` means Charm++ `readonly message M *name;` only when `M` is a previously declared top-level Charm# `message` type in the same translation unit. Output C++ uses an ordinary `M* name;` global. This is not `const`, and allocation/initialization must still occur with `new` in the mainchare constructor. The Charm++ runtime distributes the initialized message to all PEs. Arbitrary pointers, forward message types, pointer arrays, and declarator initializers are not supported; no ownership rules are added. This restricted subset has pinned Charm++ v8.0.0 runtime validation on two processing elements.
+
+### Phase 7.3 — Initialization hook annotations
+
+A top-level free-function definition can use `[[charm::initnode]] void name() { ... }` or `[[charm::initproc]] void name() { ... }`. Empty parameter lists and explicit `(void)` are accepted. Charm# strips the annotation, preserves the C++ body, and emits the corresponding `initnode void name();` or `initproc void name();` registration in the generated .ci. Non-void return types, parameters, prototypes without definitions, class methods, namespaces, qualified names and duplicate registrations are excluded from the restricted subset. This does not add scheduling semantics; Charmxi and Charm++ control when each hook executes.

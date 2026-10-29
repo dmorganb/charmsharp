@@ -119,6 +119,14 @@ public:
                 if (conditional_depth != 0)
                     fail(i, "a message inside a preprocessor conditional is not supported");
                 i = parse_message(i) - 1;
+            } else if (is(i, "[") && is(i + 1, "[") && is(i + 2, "charm") &&
+                       is(i + 3, ":") && is(i + 4, ":") &&
+                       (is(i + 5, "initnode") || is(i + 5, "initproc"))) {
+                if (depth != 0)
+                    fail(i, "Charm# init hooks must be top-level free functions");
+                if (conditional_depth != 0)
+                    fail(i, "init hooks inside preprocessor conditionals are deferred");
+                i = parse_init_hook(i) - 1;
             } else if (is(i, "readonly")) {
                 if (depth != 0) fail(i, "readonly declarations must be at global scope");
                 if (conditional_depth != 0)
@@ -140,7 +148,8 @@ public:
             i = close;
         }
         discover_template_registrations();
-        if (chares_.empty() && messages_.empty() && readonly_.empty())
+        if (chares_.empty() && messages_.empty() && readonly_.empty() &&
+            semantic_.init_hooks.empty())
             throw Diagnostic("expected a top-level Charm# declaration", 0);
 
         semantic_.is_mainmodule = std::any_of(semantic_.parallel_types.begin(),
@@ -167,6 +176,7 @@ private:
     std::vector<std::string> messages_;
     std::vector<std::string> readonly_;
     std::vector<std::string> readonly_names_;
+    std::vector<std::string> init_hook_names_;
     std::vector<std::string> parallel_type_names_;
     std::vector<std::string> message_type_names_;
     std::vector<std::pair<std::string, std::size_t>> ordinary_type_names_;
@@ -302,6 +312,32 @@ private:
         if (result.cpp.empty() && result.parallel.empty())
             fail(after_name, "expected a base class");
         return result;
+    }
+
+    std::size_t parse_init_hook(std::size_t start) {
+        // Only top-level ordinary C++ void free-function definitions.
+        if (!is(start + 6, "]") || !is(start + 7, "]"))
+            fail(start, "expected [[charm::initnode]] or [[charm::initproc]]");
+        const bool node_level = is(start + 5, "initnode");
+        const auto type = start + 8;
+        const auto name = type + 1;
+        if (!is(type, "void") || name >= tokens_.size() ||
+            tokens_[name].kind != Kind::Identifier || !is(name + 1, "("))
+            fail(type, "init hook requires a top-level void name() definition");
+        const auto close = matching(name + 1, "(", ")", tokens_.size());
+        if (close != name + 2 && !(close == name + 3 && is(name + 2, "void")))
+            fail(name + 1, "init hook accepts no parameters");
+        if (!is(close + 1, "{"))
+            fail(close + 1, "init hook requires an ordinary C++ function body");
+        const auto body_close = matching(close + 1, "{", "}", tokens_.size());
+        const auto hook_name = token_text(name);
+        if (std::find(init_hook_names_.begin(), init_hook_names_.end(), hook_name) !=
+            init_hook_names_.end())
+            fail(name, "duplicate Charm# init hook registration");
+        init_hook_names_.push_back(hook_name);
+        semantic_.init_hooks.push_back({hook_name, node_level,
+            {tokens_[start].begin, tokens_[start + 7].end}});
+        return body_close + 1;
     }
 
     std::size_t parse_readonly(std::size_t keyword) {

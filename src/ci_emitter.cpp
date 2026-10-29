@@ -133,6 +133,9 @@ std::string emit_ci(std::string_view source, const SemanticModel& model) {
     for (const auto& readonly : model.readonly_variables)
         ci += "    readonly " + std::string(readonly.is_message ? "message " : "") +
               std::string(trim(slice(source, readonly.declarator))) + ";\n";
+    for (const auto& hook : model.init_hooks)
+        ci += "    " + std::string(hook.node_level ? "initnode" : "initproc") +
+              " void " + hook.name + "();\n";
     for (const auto& chare : model.parallel_types) {
         if (!chare.template_declaration.empty())
             ci += "    " + chare.template_declaration + "\n";
