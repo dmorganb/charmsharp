@@ -305,20 +305,28 @@ private:
     }
 
     std::size_t parse_readonly(std::size_t keyword) {
-        // Charmxi accepts a single-token type, optionally followed by a
-        // compile-time sized array. In this first slice, reject pointers,
-        // references, initializers, and multi-token C++ type expressions.
         const auto type = keyword + 1;
-        const auto name = type + 1;
-        if (type >= tokens_.size() || tokens_[type].kind != Kind::Identifier ||
-            name >= tokens_.size() || tokens_[name].kind != Kind::Identifier)
-            fail(keyword, "expected readonly Type name; (single-token type)");
-        const std::string variable(source_.substr(tokens_[name].begin,
-                                                  tokens_[name].end - tokens_[name].begin));
+        if (type >= tokens_.size() || tokens_[type].kind != Kind::Identifier)
+            fail(keyword, "expected readonly Type name; or readonly Message* name;");
+        const auto type_name = token_text(type);
+        auto name = type + 1;
+        bool is_message = false;
+        if (is(name, "*")) {
+            // Only known Charm# message types may be readonly pointers.
+            // Require the message declaration first, matching C++ visibility.
+            if (std::find(messages_.begin(), messages_.end(), type_name) == messages_.end())
+                fail(name, "readonly pointers require a preceding Charm# message declaration");
+            is_message = true;
+            ++name;
+        }
+        if (name >= tokens_.size() || tokens_[name].kind != Kind::Identifier)
+            fail(name, "expected readonly Type name; or readonly Message* name;");
+        const auto variable = token_text(name);
         if (name_used(variable)) fail(name, "duplicate Charm# type or readonly name");
         auto end = name + 1;
         std::optional<std::string> array_bound;
         if (is(end, "[")) {
+            if (is_message) fail(end, "readonly message pointers cannot be arrays");
             const auto bound = end + 1;
             if (bound >= tokens_.size() || tokens_[bound].kind != Kind::Number ||
                 !is(bound + 1, "]"))
@@ -337,8 +345,9 @@ private:
                                                    tokens_[end].begin - tokens_[type].begin)));
         readonly_names_.push_back(variable);
         detail::ReadonlyDeclaration declaration;
-        declaration.type_name = token_text(type);
+        declaration.type_name = type_name;
         declaration.name = variable;
+        declaration.is_message = is_message;
         declaration.array_bound = std::move(array_bound);
         declaration.declarator = {tokens_[type].begin, tokens_[end].begin};
         declaration.source = {tokens_[keyword].begin, tokens_[end].end};

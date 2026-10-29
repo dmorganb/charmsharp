@@ -1,0 +1,12 @@
+mainmodule ReadonlyMessage {
+    message SharedConfig {
+        double values[];
+    };
+    readonly message SharedConfig *configuration;
+    chare Reader {
+        entry Reader();
+    };
+    mainchare Main {
+        entry Main(CkArgMsg* args);
+    };
+};

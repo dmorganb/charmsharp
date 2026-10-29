@@ -798,6 +798,31 @@ entry:
     contains(alone.interface_source, "module Globals {\n    readonly int size;");
 }
 
+void readonly_message_pointers() {
+    const auto result = charmsharp::translate(R"SRC(message Settings {
+public:
+    int count = 0;
+    int data[];
+};
+readonly Settings* settings;
+chare Main {
+entry:
+    Main(CkArgMsg* args) { delete args; settings = new (3) Settings; }
+};
+)SRC", "ReadonlyMsg");
+    contains(result.interface_source, "message Settings {");
+    contains(result.interface_source, "readonly message Settings* settings;");
+    contains(result.cpp_source, "Settings* settings;");
+    ++checks;
+    if (result.cpp_source.find("readonly Settings") != std::string::npos)
+        throw std::runtime_error("readonly qualifier leaked into C++");
+    rejects("readonly int* count;", "preceding Charm# message");
+    rejects("readonly Settings* x; message Settings {};", "preceding Charm# message");
+    rejects("message Settings {}; readonly Settings** x;", "expected readonly");
+    rejects("message Settings {}; readonly Settings* x[2];", "cannot be arrays");
+    rejects("message Settings {}; readonly Settings* x = nullptr;", "initializers");
+}
+
 void ordinary_inheritance() {
     const auto output = charmsharp::translate(R"SRC(class Logging {
 public:
@@ -1357,7 +1382,7 @@ void diagnostics() {
     rejects("namespace N { message M {}; }", "namespace messages");
     rejects("#ifdef X\nmessage M {};\n#endif", "preprocessor conditional");
     rejects("readonly int;", "expected readonly Type name");
-    rejects("readonly int* count;", "expected readonly Type name");
+    rejects("readonly int* count;", "preceding Charm# message");
     rejects("readonly unsigned int count;", "initializers, pointers and complex");
     rejects("readonly int count = 3;", "initializers, pointers and complex");
     rejects("readonly int values[];", "fixed numeric bound");
@@ -1404,6 +1429,7 @@ int main() {
     message_methods_preserve_ordinary_cpp();
     variable_size_message_arrays();
     readonly_globals();
+    readonly_message_pointers();
     ordinary_inheritance();
     message_inheritance();
     parallel_inheritance();

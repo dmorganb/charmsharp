@@ -36,7 +36,7 @@ supported.
 | Variable-size `message` with `T field[]` | **R, limited (7.1)** | Restricted primitive member lowering, ordered `.ci` metadata and C++ pointers; pinned v8.0.0 runtime validated with single/two arrays, zero/unequal lengths, remote delivery/cleanup, and handwritten reference. |
 | Message attributes `[packed]`, `[varsize]`; `conditional` fields | **D** | Present in pinned parser; `packed`/`varsize` are parsed as compatibility no-ops in v8.0.0 grammar. Not a reason to implement them early. |
 | `readonly Type x;` and `readonly Type a[N];` | **R, limited** | Single-token types; decimal fixed bounds; runtime initialization in mainchare. Complex types, multidimensional bounds and declaration initializers unsupported. |
-| `readonly message M *x;` | **D** | Requires explicit message-pointer handling and initialization on PEs. |
+| `readonly message M *x;` | **R, limited (7.2)** | Inferred from `readonly M* x;` if M is an earlier-defined Charm# message; pinned-v8.0.0 `+p2` runtime initialization and handwritten equivalence validated. |
 | Chare inheritance: ordinary C++ bases | **R, limited** | Simple, earlier-defined local `class`/`struct`, multiple bases/access labels; external and dependent bases deferred. |
 | Chare inheritance: `.ci` parallel base | **R, limited** | One explicitly public, earlier-defined local `chare` base; inherited proxy call tested. No multi-base parallel hierarchy, forward/cross-file resolution, or other parallel kinds. |
 | Message inheritance: ordinary C++ bases | **R, limited** | One or more simple earlier-defined ordinary bases; message-to-message inheritance rejected. |
