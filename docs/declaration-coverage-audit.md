@@ -1,8 +1,11 @@
 # Phase 3.4 — Charm++ interface declaration coverage audit
 
 Status: 2026-10-23. Baseline: **Charm++ v8.0.0** and Charm# grammar v0.1.
-This is a **documentation audit**, not an implementation milestone or a claim
-of full Charm++ compatibility.
+This is a **historical Phase 3 documentation audit**, not an implementation
+milestone or a claim of full Charm++ compatibility. Several status cells
+below reflect the original Phase 3 baseline; **consult the
+[consolidated limitations](limitations.md) and [current language coverage](language-coverage.md)
+for present-day support** (including Phases 5–7).
 
 ## Method and status definitions
 

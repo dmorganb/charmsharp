@@ -155,7 +155,8 @@ receives Charm++'s `_SDAG_CODE` glue. For example, the source of
 [the Prefix Sum port](benchmarks/prefix-sum/charmsharp/prefix.csh) includes
 an SDAG loop and a reference-matched `when` receive.
 
-The precise syntax and restrictions are in the
+The current consolidated restrictions are in [limitations](docs/limitations.md).
+The precise syntax and implementation evidence are in the
 [grammar](docs/charmsharp-grammar-v0.1.md),
 [language coverage](docs/language-coverage.md), and
 [declaration coverage audit](docs/declaration-coverage-audit.md), and
@@ -194,6 +195,11 @@ for upstream revision and test details.
 
 ## Known limitations
 
+See [the consolidated limitations and compatibility boundaries](docs/limitations.md)
+for the current, feature-by-feature status and explicit distinctions between
+rejected, unimplemented, and untested constructs.
+
+
 - The structural parser is intentionally **not** a full C++ parser or type
   checker. Charm++ and the C++ compiler still validate many declaration,
   serialization, and runtime rules.
@@ -201,10 +207,11 @@ for upstream revision and test details.
   qualifiers, complex return types, and most Charm++ entry attributes.
   Namespaced parallel declarations and general multi-module dependency
   discovery are not implemented.
-- Variable-size messages, complicated readonly types, and general C++
-  inheritance resolution are outside the tested subset. Chare templates need
-  a shared header, and automatic concrete specialization discovery is limited
-  to recognized built-in type arguments in one input `.csh`.
+- Variable-size messages and readonly message pointers have verified
+  restricted implementations; complex declarations and general C++ inheritance
+  resolution remain outside the tested subset. Chare templates need a shared
+  header, and automatic concrete specialization discovery is limited to
+  recognized built-in type arguments in one input `.csh`.
 - SDAG receive bodies do not yet support nested SDAG waits or
   comma-separated multi-receive dependencies. For SDAG `for` and `forall`,
   indices that must survive suspension should be persistent chare fields.

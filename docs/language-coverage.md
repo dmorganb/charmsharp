@@ -5,7 +5,9 @@ Status: 2026-10-29. Target: Charm++ v8.0.0 and Charm# grammar v0.1.
 For the **versioned, construct-by-construct comparison** against the
 actual Charm++ `.ci` parser, see the
 [Phase 3.4 declaration coverage audit](declaration-coverage-audit.md).
-This page summarizes current implementation and its boundaries.
+This page summarizes current implementation and its boundaries. See the
+[consolidated limitations](limitations.md) for a feature-by-feature current
+reference; the original declaration audit retains historical snapshots.
 
 ## Implemented (restricted subsets)
 
@@ -38,16 +40,17 @@ This page summarizes current implementation and its boundaries.
 - **Entry methods:** Nontrivial return types, qualifiers, constructor
   templates, default arguments and local entry semantics
   are deferred. Constructor initializer lists are supported for entry definitions with simple or qualified base/member designators and parenthesized or braced initializers. We do not perform full C++ type resolution or PUP validation.
-- **Messages/readonly:** Variable-size messages, readonly message pointers
-  and complicated declarations need their own serialization/initialization
-  tests. Fixed-size declarations with unsupported members may still fail in
-  Charm++ because the translator is structural, not semantic.
+- **Messages/readonly:** Restricted variable-size messages and readonly message
+  pointers now have executable serialization/initialization tests. More
+  complicated declarations remain deferred; unvalidated ordinary members may
+  still fail in Charm++ because translation is structural, not semantic.
 - **Inheritance:** External/later-defined bases, multiple parallel bases,
   non-chare parallel inheritance and complex base specifiers are deferred.
   Any inheritance on templated chares is explicitly rejected until shared-header
   base resolution and Charmxi template inheritance semantics are verified.
-- **Interface constructs:** `PUPable`,
-  `extern module`, `include`, general template entities (beyond scalar chare declarations), `.ci` namespaces,
+- **Interface constructs:** PUPable has a validated restricted explicit
+  registration subset; `extern module`, `include`, general template entities
+  (beyond scalar chare declarations), `.ci` namespaces,
   chare attributes and module dependency tracking lack native Charm# lowering.
 - **Source/build model:** One module per input, no dependency discovery,
   conditional parallel declarations rejected, and no generated `#line`
@@ -84,12 +87,12 @@ Top-level `[[charm::initnode]] void name() { ... }` and `[[charm::initproc]] voi
 
 Validated Phase 7.3 reference: [initialization hook runtime test](init-hooks-validation.md). The multicore fixture exercises one node and two PEs.
 
-### Phase 7.4 — PUPable registration (in validation)
+### Phase 7.4 — PUPable registration (restricted subset validated)
 
 `[[charm::pupable]]` supports a global non-template `class Name : public
 PUP::able` with explicit migration constructor and `pup(PUP::er&)`.
 The generated C++ class receives `PUPable_decl(Name)`, and the .ci module
 receives `PUPable Name;`; no member serialization is inferred or generated.
-Compilation and cross-PE runtime comparison are checked in the pinned
-Charm++ CI fixture. Namespaced, template, indirect inheritance and automatic
+Compilation and cross-PE runtime comparison passed in the pinned
+Charm++ CI fixture ([PR #60](https://github.com/dmorganb/charmsharp/pull/60)). Namespaced, template, indirect inheritance and automatic
 `pup()` are outside the restricted subset.
