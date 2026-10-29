@@ -1,7 +1,7 @@
 # Incremental implementation roadmap
 
 This roadmap tracks the implementation against `charmsharp-grammar-v0.1.md`.
-See [language coverage](language-coverage.md) and the [Phase 3.4 audit](declaration-coverage-audit.md) for supported syntax,
+See [consolidated limitations](limitations.md), [language coverage](language-coverage.md) and the [Phase 3.4 audit](declaration-coverage-audit.md) for supported syntax,
 unsupported entry attributes, return types, and remaining declaration features.
 
 | Milestone | Status | Scope / acceptance |
@@ -33,7 +33,7 @@ unsupported entry attributes, return types, and remaining declaration features.
 | 7.1 | Complete (restricted primitive-array subset) | Restricted variable-size message fields, CI metadata and pointer lowering, pinned-runtime validation |
 | 7.2 | Complete (restricted local-message pointer) | Readonly message pointers and multi-PE initialization |
 | 7.3 | Complete (restricted top-level void functions) | `initnode` and `initproc` initialization hooks |
-| 7.4 | Planned | Restricted PUPable registration after v8.0.0 semantics audit |
+| 7.4 | Complete (restricted explicit registration) | PUPable class registration, native Charmxi macro plumbing, and pinned cross-PE polymorphic transfer versus handwritten Charm++ |
 | Later | Planned | Richer entries, multi-file/module integration, source mapping |
 
 ## Fixed-size message slice (phase 3.1)
@@ -394,6 +394,5 @@ Use Charm++ v8.0.0's own runtime registration and polymorphic packing.
 Deliberately reject nested, namespace, conditional and template class
 registrations; indirect/aliased bases, custom PUP macros, synthesized
 migration constructors, automatic member pup generation and multi-TU class
-discovery are deferred. Current validation is structural; compile and execute
-a handwritten-versus-generated remote transfer on +p2 before declaring the
-slice complete. See [validation notes](pupable-validation.md).
+discovery are deferred. The handwritten-versus-generated remote transfer on +p2 passed pinned
+Charm++ v8.0.0 CI in [PR #60](https://github.com/dmorganb/charmsharp/pull/60). See [validation notes](pupable-validation.md).
