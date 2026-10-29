@@ -96,6 +96,11 @@ std::string emit_template_header(std::string_view source, const SemanticModel& m
 
 std::string emit_cpp(std::string_view source, const SemanticModel& model) {
     std::vector<Edit> edits;
+    for (const auto& pupable : model.pupable_classes) {
+        edits.push_back({pupable.attribute.begin, pupable.attribute.end, ""});
+        edits.push_back({pupable.closing_brace, pupable.closing_brace,
+                         "\n    PUPable_decl(" + pupable.name + ");\n"});
+    }
     for (const auto& hook : model.init_hooks)
         edits.push_back({hook.attribute.begin, hook.attribute.end, ""});
     for (const auto& registration : model.template_registrations)

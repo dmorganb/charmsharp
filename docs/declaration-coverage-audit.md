@@ -119,3 +119,13 @@ not equivalent to complete Charm++ template compatibility. Explicit complex
 argument strings are parsed structurally; default/multiple/non-type template
 parameters, other template entity kinds, inheritance and whole-program proxy
 usage inference remain deferred. See the [Phase 6.3.4e audit](chare-template-coverage-audit.md).
+
+### Phase 7.4 — PUPable registration subset
+
+Charmxi v8.0.0 recognizes `PUPable Name;`, emitting the required
+`PUPable_def(Name)` and startup `PUPable_reg(Name)` code. Charm# emits
+this metadata and injects `PUPable_decl(Name)` for a directly derived
+global `PUP::able` class explicitly marked `[[charm::pupable]]`.
+Programmers must supply the migration constructor and `pup(PUP::er&)`.
+Template and namespace registrations and nontrivial base resolution are
+deferred. Runtime evidence: [pupable validation](pupable-validation.md).

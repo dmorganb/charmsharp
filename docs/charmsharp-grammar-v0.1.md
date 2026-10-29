@@ -459,3 +459,21 @@ A message body may contain standalone `T name[];` member declarations, where `T`
 A top-level free-function definition can use `[[charm::initnode]] void name() { ... }` or `[[charm::initproc]] void name() { ... }`. Empty parameter lists and explicit `(void)` are accepted. Charm# strips the annotation, preserves the C++ body, and emits the corresponding `initnode void name();` or `initproc void name();` registration in the generated .ci. Non-void return types, parameters, prototypes without definitions, class methods, namespaces, qualified names and duplicate registrations are excluded from the restricted subset. This does not add scheduling semantics; Charmxi and Charm++ control when each hook executes.
 
 The Phase 7.3 free-function subset has executable v8.0.0 integration evidence for node/processor counts and startup order. See [init hook validation](init-hooks-validation.md).
+
+### PUPable class registration (Phase 7.4 restricted subset)
+
+```cpp
+[[charm::pupable]]
+class State : public PUP::able {
+public:
+    State(CkMigrateMessage* m) : PUP::able(m) {}
+    void pup(PUP::er& p) override { PUP::able::pup(p); }
+};
+```
+
+The attribute maps to `PUPable State;` in .ci. C++ emits the ordinary
+class with `PUPable_decl(State)` inserted into its body; Charmxi's
+generated `.def.h` supplies the matching definition and registration.
+Supported classes are global, non-template and directly publicly derived
+from `PUP::able`; a migration constructor and `pup(PUP::er&)` method
+are required. No automatic serialization or template registration.

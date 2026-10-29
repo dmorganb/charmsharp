@@ -83,3 +83,13 @@ header dependencies, inheritance restrictions, and the resolved
 Top-level `[[charm::initnode]] void name() { ... }` and `[[charm::initproc]] void name() { ... }` lower to native .ci registrations while retaining ordinary C++ definitions. Duplicate, non-void, parameterized, nested and declaration-only hooks are rejected. The pinned v8.0.0 runtime integration test compares node/PE invocation counts against a separately handwritten Charm++ program. Multi-node distinct-host behavior is not exercised by the two-PE multicore fixture.
 
 Validated Phase 7.3 reference: [initialization hook runtime test](init-hooks-validation.md). The multicore fixture exercises one node and two PEs.
+
+### Phase 7.4 — PUPable registration (in validation)
+
+`[[charm::pupable]]` supports a global non-template `class Name : public
+PUP::able` with explicit migration constructor and `pup(PUP::er&)`.
+The generated C++ class receives `PUPable_decl(Name)`, and the .ci module
+receives `PUPable Name;`; no member serialization is inferred or generated.
+Compilation and cross-PE runtime comparison are checked in the pinned
+Charm++ CI fixture. Namespaced, template, indirect inheritance and automatic
+`pup()` are outside the restricted subset.

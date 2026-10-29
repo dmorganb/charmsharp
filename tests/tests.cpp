@@ -798,6 +798,40 @@ entry:
     contains(alone.interface_source, "module Globals {\n    readonly int size;");
 }
 
+void pupable_class_registration() {
+    const auto output = charmsharp::translate(R"SRC(
+[[charm::pupable]]
+class State : public PUP::able {
+    int value = 42;
+public:
+    State(CkMigrateMessage* m) : PUP::able(m) {}
+    void pup(PUP::er& p) override { PUP::able::pup(p); p | value; }
+};
+chare Main { entry: Main(CkArgMsg* args) { delete args; CkExit(); } };
+)SRC", "Pupable");
+    contains(output.interface_source, "PUPable State;");
+    contains(output.cpp_source, "class State : public PUP::able");
+    contains(output.cpp_source, "PUPable_decl(State);");
+    contains(output.cpp_source, "void pup(PUP::er& p) override");
+    ++checks;
+    if (output.cpp_source.find("[[charm::pupable]]") != std::string::npos)
+        throw std::runtime_error("PUPable attribute leaked into C++");
+    rejects("[[charm::pupable]] struct S : public PUP::able { };",
+            "non-template class");
+    rejects("[[charm::pupable]] class S { };",
+            "direct public");
+    rejects("[[charm::pupable]] class S : private PUP::able { };",
+            "direct public");
+    rejects("[[charm::pupable]] class S : public PUP::able { void pup(PUP::er&); };",
+            "migration constructor");
+    rejects("[[charm::pupable]] class S : public PUP::able { S(CkMigrateMessage*); };",
+            "pup(PUP::er&)");
+    rejects("namespace N { [[charm::pupable]] class S {}; }",
+            "global scope");
+    rejects("#ifdef X\n[[charm::pupable]] class S {};\n#endif",
+            "preprocessor conditionals");
+}
+
 void init_hook_attributes() {
     const auto result = charmsharp::translate(R"SRC(
 [[charm::initnode]]
@@ -1455,6 +1489,7 @@ int main() {
     readonly_globals();
     readonly_message_pointers();
     init_hook_attributes();
+    pupable_class_registration();
     ordinary_inheritance();
     message_inheritance();
     parallel_inheritance();

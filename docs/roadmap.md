@@ -380,3 +380,20 @@ Charm# accepts `readonly M* name;` only if `message M { ... };` appeared earlier
 ### Phase 7.3 — Initialization hooks
 
 The restricted syntax is `[[charm::initnode]] void name() { ... }` or `[[charm::initproc]] void name() { ... }` on a top-level free-function definition. Charm# removes only the C++ attribute and emits `initnode void name();` or `initproc void name();` in the generated module. Charmxi controls registration and execution timing; node-level hooks run once per node and processor-level hooks per PE. Do not infer hooks from ordinary functions. Diagnose unsupported signatures, qualifiers, duplicate registrations, declarations without bodies, and non-global placement. The pinned runtime fixture compares invocation counts against a handwritten .ci/C++ implementation at `+p2`; unusual layouts such as multi-node and accelerator callbacks remain outside this initial subset.
+
+### Phase 7.4 — PUPable explicit registration (restricted first slice)
+
+Implement `[[charm::pupable]] class Name : public PUP::able { ... };` for global,
+non-template classes with direct public inheritance and a declared
+`Name(CkMigrateMessage*)` constructor and `pup(PUP::er&)` method. Emit
+`PUPable Name;` in .ci and insert `PUPable_decl(Name)` at the end of the C++
+class body, without altering existing members. Charmxi supplies
+`PUPable_def(Name)` and `PUPable_reg(Name)` in its generated .def.h.
+Use Charm++ v8.0.0's own runtime registration and polymorphic packing.
+
+Deliberately reject nested, namespace, conditional and template class
+registrations; indirect/aliased bases, custom PUP macros, synthesized
+migration constructors, automatic member pup generation and multi-TU class
+discovery are deferred. Current validation is structural; compile and execute
+a handwritten-versus-generated remote transfer on +p2 before declaring the
+slice complete. See [validation notes](pupable-validation.md).
