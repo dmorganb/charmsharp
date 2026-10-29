@@ -1,0 +1,10 @@
+mainmodule Pupable {
+    PUPable State;
+    group Receiver {
+        entry Receiver();
+        entry void accept(std::shared_ptr<State> state);
+    };
+    mainchare Main {
+        entry Main(CkArgMsg* args);
+    };
+};

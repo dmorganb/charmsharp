@@ -120,6 +120,8 @@ std::string emit_ci(std::string_view source, const SemanticModel& model) {
                      model.module_name + " {\n";
     if (!model.template_registrations.empty())
         ci += "    extern module " + model.module_name + "_specializations;\n";
+    for (const auto& pupable : model.pupable_classes)
+        ci += "    PUPable " + pupable.name + ";\n";
     for (const auto& message : model.messages) {
         if (message.variable_arrays.empty()) {
             ci += "    message " + message.name + ";\n";

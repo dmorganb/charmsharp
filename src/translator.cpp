@@ -127,6 +127,12 @@ public:
                 if (conditional_depth != 0)
                     fail(i, "init hooks inside preprocessor conditionals are deferred");
                 i = parse_init_hook(i) - 1;
+            } else if (is(i, "[") && is(i + 1, "[") && is(i + 2, "charm") &&
+                       is(i + 3, ":") && is(i + 4, ":") && is(i + 5, "pupable")) {
+                if (depth != 0) fail(i, "PUPable classes must be at global scope");
+                if (conditional_depth != 0)
+                    fail(i, "PUPable classes inside preprocessor conditionals are deferred");
+                i = parse_pupable(i) - 1;
             } else if (is(i, "readonly")) {
                 if (depth != 0) fail(i, "readonly declarations must be at global scope");
                 if (conditional_depth != 0)
@@ -149,7 +155,7 @@ public:
         }
         discover_template_registrations();
         if (chares_.empty() && messages_.empty() && readonly_.empty() &&
-            semantic_.init_hooks.empty())
+            semantic_.init_hooks.empty() && semantic_.pupable_classes.empty())
             throw Diagnostic("expected a top-level Charm# declaration", 0);
 
         semantic_.is_mainmodule = std::any_of(semantic_.parallel_types.begin(),
@@ -312,6 +318,50 @@ private:
         if (result.cpp.empty() && result.parallel.empty())
             fail(after_name, "expected a base class");
         return result;
+    }
+
+    std::size_t parse_pupable(std::size_t start) {
+        if (!is(start + 6, "]") || !is(start + 7, "]"))
+            fail(start, "expected [[charm::pupable]]");
+        const auto keyword = start + 8;
+        if (!is(keyword, "class"))
+            fail(keyword, "PUPable requires a top-level non-template class definition");
+        const auto name = keyword + 1;
+        if (name >= tokens_.size() || tokens_[name].kind != Kind::Identifier)
+            fail(name, "PUPable requires a simple class name");
+        const auto class_name = token_text(name);
+        if (name_used(class_name) ||
+            std::any_of(semantic_.pupable_classes.begin(), semantic_.pupable_classes.end(),
+                [&](const auto& previous) { return previous.name == class_name; }))
+            fail(name, "duplicate Charm# PUPable class name");
+        const auto colon = name + 1;
+        if (!is(colon, ":") || !is(colon + 1, "public") ||
+            !is(colon + 2, "PUP") || !is(colon + 3, ":") ||
+            !is(colon + 4, ":") || !is(colon + 5, "able") || !is(colon + 6, "{"))
+            fail(colon, "PUPable requires direct public PUP::able inheritance");
+        const auto brace = colon + 6;
+        const auto close = matching(brace, "{", "}", tokens_.size());
+        if (!is(close + 1, ";"))
+            fail(close, "PUPable class definition must end with ';'");
+        bool migration = false;
+        bool pup = false;
+        for (auto i = brace + 1; i < close; ++i) {
+            if (is(i, class_name) && is(i + 1, "(") &&
+                is(i + 2, "CkMigrateMessage") && is(i + 3, "*"))
+                migration = true;
+            if (is(i, "pup") && is(i + 1, "(") &&
+                is(i + 2, "PUP") && is(i + 3, ":") && is(i + 4, ":") &&
+                is(i + 5, "er") && is(i + 6, "&"))
+                pup = true;
+        }
+        if (!migration)
+            fail(name, "PUPable requires a CkMigrateMessage* migration constructor");
+        if (!pup)
+            fail(name, "PUPable requires a pup(PUP::er&) method");
+        semantic_.pupable_classes.push_back({
+            class_name, {tokens_[start].begin, tokens_[start + 7].end},
+            tokens_[close].begin});
+        return close + 2;
     }
 
     std::size_t parse_init_hook(std::size_t start) {

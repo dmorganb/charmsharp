@@ -103,6 +103,12 @@ struct InitHookDeclaration {
     SourceRange attribute;
 };
 
+struct PupableDeclaration {
+    std::string name;
+    SourceRange attribute; // [[charm::pupable]] removed from generated C++.
+    std::size_t closing_brace = 0; // Inject PUPable_decl without changing member access.
+};
+
 struct TemplateRegistration {
     std::string name;
     std::string arguments; // Including angle brackets, e.g. <int>.
@@ -117,6 +123,7 @@ struct SemanticModel {
     std::vector<MessageDeclaration> messages;
     std::vector<ReadonlyDeclaration> readonly_variables;
     std::vector<InitHookDeclaration> init_hooks;
+    std::vector<PupableDeclaration> pupable_classes;
     std::vector<MarshalledArray> marshalled_arrays;
 };
 
