@@ -100,3 +100,17 @@ manual per-TU compile/link **and** the integrated multi-input `--build` path.
 The full legacy compiler/regression suite is also run to guard single-file
 compatibility. More language feature combinations (especially template and
 PUPable registration across inputs) remain open before closing the milestone.
+
+## Audit: unsupported cross-file registration and failure modes
+
+The existing single-input template pipeline creates a narrow specialization
+module and template header per input. Aggregating those artifacts without
+reworking ownership would silently drop or duplicate registrations. Similarly,
+PUPable annotations require Charmxi metadata and generated C++ registration
+macros, so moving annotated definitions among translation units cannot be
+assumed correct without native runtime testing. **Both are deliberately
+rejected in the multi-input path**, with negative CLI cases. Existing
+single-source template and PUPable support is unchanged and independently
+regression-tested. Follow-up should test each feature with an independent
+handwritten cross-TU reference and remote serialization before lifting the
+restrictions. Duplicate names and output basenames also have negative tests.

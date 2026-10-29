@@ -141,6 +141,19 @@ int main(int argc, char** argv) {
                     throw std::runtime_error("duplicate multi-file output basename: " + cpp.string());
                 outputs.push_back(cpp);
             }
+            for (const auto& path : native_paths) {
+                const auto object = path.stem().string() + "_native.o";
+                const auto native_cpp = output_dir / (path.stem().string() + ".cpp");
+                if (std::find(outputs.begin(), outputs.end(), native_cpp) != outputs.end())
+                    throw std::runtime_error("native source collides with generated .cpp basename: " +
+                                             path.string());
+                if (std::any_of(input_paths.begin(), input_paths.end(),
+                    [&](const fs::path& source) {
+                        return source.stem().string() + ".o" == object;
+                    }))
+                    throw std::runtime_error("native object collides with generated object: " +
+                                             path.string());
+            }
             if (!force)
                 for (const auto& output : outputs)
                     if (fs::exists(output))

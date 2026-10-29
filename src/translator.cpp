@@ -1238,8 +1238,10 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
         for (const auto& chare : model.parallel_types) register_name(chare.name);
         for (const auto& message : model.messages) register_name(message.name);
         for (const auto& readonly : model.readonly_variables) register_name(readonly.name);
-        if (!model.pupable_classes.empty() || !model.template_registrations.empty())
-            throw Diagnostic("multi-file PUPable and template registration are not yet supported", 0);
+        if (!model.pupable_classes.empty())
+            throw Diagnostic("multi-file PUPable registration is not yet supported", 0);
+        if (!model.template_registrations.empty())
+            throw Diagnostic("multi-file template specialization registration is not yet supported", 0);
         for (const auto& chare : model.parallel_types)
             if (!chare.template_declaration.empty())
                 throw Diagnostic("multi-file chare templates require shared-template integration", 0);

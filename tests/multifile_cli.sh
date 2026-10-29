@@ -37,4 +37,48 @@ if "$compiler" --force --module Simulation --out-dir "$tmp/generated" "$tmp/Main
   echo 'duplicate mainchare was accepted' >&2
   exit 1
 fi
+cat >"$tmp/Template.csh" <<'EOF'
+template<typename T>
+chare GenericWorker {
+entry:
+    GenericWorker() {}
+};
+EOF
+if "$compiler" --module Simulation --out-dir "$tmp/templateout" "$tmp/Main.csh" "$tmp/Template.csh" >"$tmp/log" 2>&1; then
+  echo 'unsupported cross-file templated chare was accepted' >&2
+  exit 1
+fi
+grep -q 'multi-file chare templates' "$tmp/log"
+cat >"$tmp/Pup.csh" <<'EOF'
+[[charm::pupable]]
+class Payload : public PUP::able {
+public:
+    Payload(CkMigrateMessage* m) : PUP::able(m) {}
+    void pup(PUP::er& p) override { PUP::able::pup(p); }
+};
+EOF
+if "$compiler" --module Simulation --out-dir "$tmp/pupout" "$tmp/Main.csh" "$tmp/Pup.csh" >"$tmp/log" 2>&1; then
+  echo 'unsupported cross-file PUPable registration was accepted' >&2
+  exit 1
+fi
+grep -q 'multi-file PUPable' "$tmp/log"
+cat >"$tmp/Repeated.csh" <<'EOF'
+chare Worker {
+entry:
+    Worker() {}
+};
+EOF
+if "$compiler" --module Simulation --out-dir "$tmp/repeated" "$tmp/Worker.csh" "$tmp/Repeated.csh" >"$tmp/log" 2>&1; then
+  echo 'duplicate cross-file chare was accepted' >&2
+  exit 1
+fi
+grep -q 'duplicate Charm# declaration' "$tmp/log"
+mkdir -p "$tmp/other"
+cp "$tmp/Worker.csh" "$tmp/other/Worker.csh"
+if "$compiler" --module Simulation --out-dir "$tmp/collide" "$tmp/Worker.csh" "$tmp/other/Worker.csh" >"$tmp/log" 2>&1; then
+  echo 'duplicate output basename was accepted' >&2
+  exit 1
+fi
+# -o --build should not run charmc before recognizing output collisions.
+grep -Eq 'duplicate Charm# declaration|duplicate multi-file output basename' "$tmp/log"
 echo 'MULTIFILE CLI PASS'
