@@ -126,6 +126,11 @@ jobs:
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
           bash tests/multifile/pup_build.sh
 
+      - name: Exercise explicitly registered template chare across Charm# files
+        run: |
+          export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
+          bash tests/multifile/template_build.sh
+
       - name: Build and execute implicit chare Main convention
         run: |
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
