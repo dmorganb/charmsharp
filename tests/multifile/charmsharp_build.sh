@@ -35,6 +35,10 @@ chare Broken {
 entry:
     Broken() { missing_member = 1; }
 };
+message BrokenMessage {
+    int values[];
+    void broken_member() { missing_message_member = 1; }
+};
 void broken_cpp() { missing_function(); }
 EOF
 cat >"$out/Other.csh" <<'EOF'
@@ -54,4 +58,5 @@ EOF
     fi
 )
 grep -Eq 'Broken\.csh:3(:[0-9]+)?:' "$out/compiler_errors.log"
-grep -Eq 'Broken\.csh:5(:[0-9]+)?:' "$out/compiler_errors.log"
+grep -Eq 'Broken\.csh:9(:[0-9]+)?:' "$out/compiler_errors.log"
+grep -Eq 'Broken\.csh:7(:[0-9]+)?:' "$out/compiler_errors.log"
