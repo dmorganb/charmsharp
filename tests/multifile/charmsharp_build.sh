@@ -98,14 +98,14 @@ for declaration in Main Worker; do
 done
 
 
-# A malformed statement inside an SDAG receive must map to that exact
-# Charm# source line, not merely the enclosing entry method.
+# A malformed nested SDAG receive must map to its exact Charm# source
+# line, not merely to the enclosing entry method.
 mkdir -p "$out/sdagxi-wrapper"
 cat >"$out/sdagxi-wrapper/charmc" <<'EOF'
 #!/bin/sh
 case "$1" in
     BadSdagXi.ci)
-        sed 's/parent.done(value);/@@@ parent.done(value);/' "$1" >"$1.injected"
+        sed 's/when deliver(int value)/when @@@ deliver(int value)/' "$1" >"$1.injected"
         mv "$1.injected" "$1"
         ;;
 esac
@@ -120,7 +120,7 @@ if PATH="$out/sdagxi-wrapper:$PATH" CHARMSHARP_REAL_CHARMC="$real_charmc" \
     echo "malformed generated SDAG statement unexpectedly compiled" >&2
     exit 1
 fi
-expected_sdag_line="$(grep -n 'parent.done(value);' "$repo/examples/SdagWhen.csh" | cut -d: -f1)"
+expected_sdag_line="$(grep -n 'when deliver(int value)' "$repo/examples/SdagWhen.csh" | cut -d: -f1)"
 if ! grep -Fq "$repo/examples/SdagWhen.csh:$expected_sdag_line:" "$out/sdagxi.log"; then
     echo "Charmxi SDAG error did not map to the original statement:" >&2
     sed -n '1,120p' "$out/sdagxi.log" >&2
