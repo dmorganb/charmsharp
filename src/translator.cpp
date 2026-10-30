@@ -17,6 +17,21 @@ namespace charmsharp {
 Diagnostic::Diagnostic(std::string message, std::size_t offset)
     : std::runtime_error(std::move(message)), offset_(offset) {}
 
+MultiDiagnostic::MultiDiagnostic(std::string message, std::size_t file, std::size_t offset,
+                                 std::size_t previous_file, std::size_t previous_offset)
+    : Diagnostic(std::move(message), offset), file_(file),
+      previous_file_(previous_file), previous_offset_(previous_offset) {}
+
+std::string format_source_excerpt(std::string_view source, std::size_t offset) {
+    offset = std::min(offset, source.size());
+    const auto start = source.rfind('\n', offset == 0 ? 0 : offset - 1);
+    const auto begin = start == std::string_view::npos ? 0 : start + 1;
+    const auto end = source.find('\n', offset);
+    return "  " + std::string(source.substr(begin,
+               end == std::string_view::npos ? source.size() - begin : end - begin)) +
+           "\n  " + std::string(offset - begin, ' ') + "^";
+}
+
 std::string format_diagnostic(std::string_view source, const Diagnostic& error) {
     std::size_t line = 1;
     std::size_t column = 1;
@@ -1189,20 +1204,33 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
     std::string specializations;
     bool has_templates = false;
     std::size_t mains = 0;
-    std::vector<std::string> declared_names;
+    struct LocatedName { std::string name; std::size_t file; std::size_t offset; };
+    std::vector<LocatedName> declared_names;
+    std::size_t file_index = 0, main_file = 0, main_offset = 0;
     std::string header = "#pragma once\n#include <memory>\n";
     std::string pup_forwards;
     std::string user_includes;
     for (auto source : sources) {
-        const auto model = detail::analyze(source, module_name);
-        const auto register_name = [&](const std::string& name) {
-            if (std::find(declared_names.begin(), declared_names.end(), name) != declared_names.end())
-                throw Diagnostic("duplicate Charm# declaration across input files: " + name, 0);
-            declared_names.push_back(name);
+        detail::SemanticModel model;
+        try {
+            model = detail::analyze(source, module_name);
+        } catch (const Diagnostic& error) {
+            throw MultiDiagnostic(error.what(), file_index, error.offset());
+        }
+        const auto register_name = [&](const std::string& name, std::size_t offset) {
+            const auto prior = std::find_if(declared_names.begin(), declared_names.end(),
+                [&](const LocatedName& item) { return item.name == name; });
+            if (prior != declared_names.end())
+                throw MultiDiagnostic("duplicate Charm# declaration across input files: " + name,
+                                      file_index, offset, prior->file, prior->offset);
+            declared_names.push_back({name, file_index, offset});
         };
-        for (const auto& chare : model.parallel_types) register_name(chare.name);
-        for (const auto& message : model.messages) register_name(message.name);
-        for (const auto& readonly : model.readonly_variables) register_name(readonly.name);
+        for (const auto& chare : model.parallel_types)
+            register_name(chare.name, chare.name_source.begin);
+        for (const auto& message : model.messages)
+            register_name(message.name, message.name_source.begin);
+        for (const auto& readonly : model.readonly_variables)
+            register_name(readonly.name, readonly.declarator.begin);
         for (const auto& pupable : model.pupable_classes)
             pup_forwards += "class " + pupable.name + ";\n";
 
@@ -1212,7 +1240,20 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
                 [](const detail::ParallelDeclaration& chare) {
                     return !chare.template_declaration.empty();
                 })) has_templates = true;
-        if (model.is_mainmodule) ++mains;
+        if (model.is_mainmodule) {
+            std::size_t offset = 0;
+            for (const auto& chare : model.parallel_types)
+                if (chare.kind == detail::ParallelKind::Mainchare) {
+                    offset = chare.name_source.begin;
+                    break;
+                }
+            if (mains != 0)
+                throw MultiDiagnostic("multiple mainchares across input files",
+                                      file_index, offset, main_file, main_offset);
+            ++mains;
+            main_file = file_index;
+            main_offset = offset;
+        }
 
         // Preserve user includes in the shared class header; class definitions
         // may depend on types declared by ordinary project headers.
@@ -1232,8 +1273,8 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
 
         header += detail::emit_shared_classes(source, model);
         result.cpp_sources.push_back(detail::emit_multi_cpp(source, model));
+        ++file_index;
     }
-    if (mains > 1) throw Diagnostic("multiple mainchares across input files", 0);
     if (!specializations.empty())
         body = "    extern module " + std::string(module_name) +
                "_specializations;\n" + body;
