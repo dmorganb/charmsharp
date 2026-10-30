@@ -89,6 +89,10 @@ for declaration in Main Worker; do
         echo "real Charmxi unexpectedly accepted malformed $declaration" >&2
         exit 1
     fi
-    grep -Eq "$repo/tests/multifile/$declaration\.csh:[0-9]+:" \
-        "$out/charmxi-$declaration.log"
+    if ! grep -Eq "$repo/tests/multifile/$declaration\.csh:[0-9]+:" \
+        "$out/charmxi-$declaration.log"; then
+        echo "Charmxi did not map $declaration to its source:" >&2
+        sed -n '1,120p' "$out/charmxi-$declaration.log" >&2
+        exit 1
+    fi
 done
