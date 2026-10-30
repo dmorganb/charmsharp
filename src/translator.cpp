@@ -1252,6 +1252,19 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
             }
         }
         body += ci_piece;
+        if (!source_paths.empty()) {
+            std::size_t registration_line =
+                3 + std::count(specializations.begin(), specializations.end(), '\n');
+            for (const auto& registration : model.template_registrations) {
+                const auto offset = std::min(registration.source.begin, source.size());
+                result.specialization_locations.push_back({
+                    registration_line++,
+                    std::string(source_paths[file_index]),
+                    1 + static_cast<std::size_t>(
+                        std::count(source.begin(), source.begin() + offset, '\n'))
+                });
+            }
+        }
         specializations += detail::emit_registration_ci_body(model);
         if (std::any_of(model.parallel_types.begin(), model.parallel_types.end(),
                 [](const detail::ParallelDeclaration& chare) {
