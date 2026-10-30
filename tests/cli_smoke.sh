@@ -56,3 +56,12 @@ if "$tool" --build --force --module Collision --out-dir "$tmp/target" \
 fi
 grep -q 'executable collides with generated output' "$tmp/target.log"
 test ! -e "$tmp/target/Collision.ci"
+
+if "$tool" --build --force --module SingleCollision \
+    --out-dir "$tmp/single-target" -o "$tmp/single-target/SingleCollision.cpp" \
+    "$input" >"$tmp/single-target.log" 2>&1; then
+    echo "Expected single-file executable/generated-C++ collision" >&2
+    exit 1
+fi
+grep -q 'executable collides with generated output' "$tmp/single-target.log"
+test ! -e "$tmp/single-target/SingleCollision.cpp"
