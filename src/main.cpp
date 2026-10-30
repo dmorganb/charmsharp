@@ -309,6 +309,10 @@ int main(int argc, char** argv) {
                     if (fs::absolute(output_dir / object.first).lexically_normal() == target)
                         throw std::runtime_error("executable collides with object output: " +
                                                  (output_dir / object.first).string());
+                for (const auto& path : input_paths)
+                    if (fs::absolute(path).lexically_normal() == target)
+                        throw std::runtime_error("executable collides with Charm# source: " +
+                                                 path.string());
                 for (const auto& path : native_paths)
                     if (fs::absolute(path).lexically_normal() == target)
                         throw std::runtime_error("executable collides with native source: " +
@@ -384,6 +388,16 @@ int main(int argc, char** argv) {
         const auto cpp_path = output_dir / (module + ".cpp");
         const auto registration_path = output_dir / (module + "_specializations.ci");
         const auto template_path = output_dir / (module + "_templates.h");
+        if (build) {
+            const auto target = fs::absolute(executable).lexically_normal();
+            if (target == fs::absolute(input_paths.front()).lexically_normal())
+                throw std::runtime_error("executable collides with Charm# source: " +
+                                         input_paths.front().string());
+            for (const auto& output : {ci_path, cpp_path, registration_path, template_path})
+                if (target == fs::absolute(output).lexically_normal())
+                    throw std::runtime_error("executable collides with generated output: " +
+                                             output.string());
+        }
         if (!force && (fs::exists(ci_path) || fs::exists(cpp_path) ||
                        (!generated.registration_interface_source.empty() && fs::exists(registration_path)) ||
                        (!generated.template_header_source.empty() && fs::exists(template_path)))) {
