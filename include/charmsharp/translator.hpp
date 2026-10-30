@@ -30,6 +30,7 @@ struct MultiGenerated {
     std::string registration_cpp_source;
     std::string specialization_interface_source;
     std::vector<CiSourceLocation> interface_locations;
+    std::vector<CiSourceLocation> specialization_locations;
 };
 
 [[nodiscard]] MultiGenerated translate_many(
