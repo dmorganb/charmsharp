@@ -122,7 +122,7 @@ std::string emit_shared_classes(std::string_view source, const SemanticModel& mo
             (message.ordinary_bases.empty() ? " " : ", " + message.ordinary_bases + " ")});
         if (!message.variable_arrays.empty()) {
             d.edits.push_back({message.opening_brace + 1, message.opening_brace + 1,
-                "\n    friend class CMessage_" + message.name + ";"});
+                " friend class CMessage_" + message.name + "; "});
             for (const auto& field : message.variable_arrays) {
                 d.edits.push_back({field.name_source.begin, field.name_source.begin, "*"});
                 d.edits.push_back({field.suffix.begin, field.suffix.end, ""});
@@ -139,7 +139,7 @@ std::string emit_shared_classes(std::string_view source, const SemanticModel& mo
         Decl d{pup.attribute.begin, close + 1, {}};
         d.edits.push_back({pup.attribute.begin, pup.attribute.end, ""});
         d.edits.push_back({pup.closing_brace, pup.closing_brace,
-                          "\n    PUPable_decl(" + pup.name + ");\n"});
+                          " PUPable_decl(" + pup.name + "); "});
         decls.push_back(std::move(d));
     }
     for (auto& decl : decls) {
