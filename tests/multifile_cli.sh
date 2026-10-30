@@ -78,6 +78,7 @@ cat >"$tmp/fake-bin/charmc" <<'EOF'
 #!/bin/sh
 line=$(grep -n 'chare Worker' Simulation.ci | cut -d: -f1)
 printf 'Simulation.ci:%s:1: error: synthetic Charmxi error\n' "$line" >&2
+printf 'Simulation.ci:999999999999999999999999999999999: error: oversized line\n' >&2
 printf 'an unrelated diagnostic line\n' >&2
 exit 1
 EOF
@@ -90,6 +91,7 @@ if PATH="$tmp/fake-bin:$PATH" "$compiler" --build -o "$tmp/fake-executable" \
 fi
 grep -Fq "$tmp/Worker with space.csh:1:1: error: synthetic Charmxi error" "$tmp/log"
 grep -Fq 'error: synthetic Charmxi error' "$tmp/log"
+grep -Fq 'Simulation.ci:999999999999999999999999999999999: error: oversized line' "$tmp/log"
 grep -Fq 'an unrelated diagnostic line' "$tmp/log"
 
 echo 'MULTIFILE CLI PASS'
