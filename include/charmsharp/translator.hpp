@@ -15,6 +15,12 @@ struct Generated {
     std::string template_header_source; // Optional shared class-template definitions.
 };
 
+struct CiSourceLocation {
+    std::size_t generated_line;
+    std::string source_path;
+    std::size_t source_line;
+};
+
 // Multi-input interface aggregation. Each returned C++ translation unit retains
 // its source-file identity. The caller owns output naming and build orchestration.
 struct MultiGenerated {
@@ -23,6 +29,7 @@ struct MultiGenerated {
     std::string shared_header_source;
     std::string registration_cpp_source;
     std::string specialization_interface_source;
+    std::vector<CiSourceLocation> interface_locations;
 };
 
 [[nodiscard]] MultiGenerated translate_many(
