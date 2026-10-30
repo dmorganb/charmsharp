@@ -116,49 +116,64 @@ std::string type_kind(const ParallelDeclaration& declaration) {
 } // namespace
 
 std::string emit_ci_body(std::string_view source, const SemanticModel& model,
-                         bool include_specialization_extern) {
+                         bool include_specialization_extern,
+                         std::vector<CiLineOrigin>* origins) {
     std::string ci;
+    std::size_t line = 1;
+    const auto add = [&](const std::string& value, std::size_t offset) {
+        for (std::size_t i = 0; i < value.size(); ++i) {
+            if ((i == 0 || value[i - 1] == '\n') && value[i] != '\n' && origins)
+                origins->push_back({line, offset});
+            if (value[i] == '\n') ++line;
+        }
+        ci += value;
+    };
     if (include_specialization_extern && !model.template_registrations.empty())
-        ci += "    extern module " + model.module_name + "_specializations;\n";
+        add("    extern module " + model.module_name + "_specializations;\n", 0);
     for (const auto& pupable : model.pupable_classes)
-        ci += "    PUPable " + pupable.name + ";\n";
+        add("    PUPable " + pupable.name + ";\n", pupable.attribute.begin);
     for (const auto& message : model.messages) {
         if (message.variable_arrays.empty()) {
-            ci += "    message " + message.name + ";\n";
+            add("    message " + message.name + ";\n", message.name_source.begin);
             continue;
         }
-        ci += "    message " + message.name + " {\n";
+        add("    message " + message.name + " {\n", message.name_source.begin);
         for (const auto& field : message.variable_arrays)
-            ci += "        " + field.type_name + " " + field.name + "[];\n";
-        ci += "    };\n";
+            add("        " + field.type_name + " " + field.name + "[];\n",
+                field.name_source.begin);
+        add("    };\n", message.name_source.begin);
     }
     for (const auto& readonly : model.readonly_variables)
-        ci += "    readonly " + std::string(readonly.is_message ? "message " : "") +
-              std::string(trim(slice(source, readonly.declarator))) + ";\n";
+        add("    readonly " + std::string(readonly.is_message ? "message " : "") +
+            std::string(trim(slice(source, readonly.declarator))) + ";\n",
+            readonly.declarator.begin);
     for (const auto& hook : model.init_hooks)
-        ci += "    " + std::string(hook.node_level ? "initnode" : "initproc") +
-              " void " + hook.name + "();\n";
+        add("    " + std::string(hook.node_level ? "initnode" : "initproc") +
+            " void " + hook.name + "();\n", hook.attribute.begin);
     for (const auto& chare : model.parallel_types) {
         if (!chare.template_declaration.empty())
-            ci += "    " + chare.template_declaration + "\n";
-        ci += "    " + type_kind(chare) + " " + chare.name;
-        if (!chare.parallel_base.empty()) ci += " : " + chare.parallel_base;
-        ci += " {\n";
-        // Charmxi registration entries are emitted before SDAG definitions,
-        // independent of their order in the original Charm# class body.
+            add("    " + chare.template_declaration + "\n", chare.name_source.begin);
+        std::string header = "    " + type_kind(chare) + " " + chare.name;
+        if (!chare.parallel_base.empty()) header += " : " + chare.parallel_base;
+        add(header + " {\n", chare.name_source.begin);
         for (const auto& entry : chare.entries)
             if (!entry.is_sdag)
-                ci += "        entry " + signature(source, entry) + ";\n";
+                add("        entry " + signature(source, entry) + ";\n",
+                    entry.is_implicit ? chare.name_source.begin : entry.method_signature.begin);
         for (const auto& entry : chare.entries) {
             if (!entry.is_sdag) continue;
             if (!entry.sdag_body)
                 throw std::logic_error("missing analyzed SDAG body");
             const auto body = source.substr(entry.sdag_body_start);
             const auto lowered = emit_sdag_nodes(body, entry, entry.sdag_body->statements);
-            ci += "        entry " + signature(source, entry) + " {\n" +
-                  lowered + "\n};\n";
+            add("        entry " + signature(source, entry) + " {\n",
+                entry.method_signature.begin);
+            // SDAG lowering can insert constructs, so this maps only to
+            // the enclosing SDAG body, not to precise statement lines.
+            add(lowered + "\n", entry.sdag_body_start);
+            add("};\n", entry.method_signature.begin);
         }
-        ci += "    };\n";
+        add("    };\n", chare.name_source.begin);
     }
     return ci;
 }
