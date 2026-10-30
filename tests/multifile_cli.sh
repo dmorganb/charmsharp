@@ -87,7 +87,7 @@ if PATH="$tmp/fake-bin:$PATH" "$compiler" --build -o "$tmp/fake-executable" \
   echo 'synthetic Charmxi error was accepted' >&2
   exit 1
 fi
-grep -Fq "$tmp/Worker.csh:1: (from Simulation.ci:" "$tmp/log"
+grep -Fq "$tmp/Worker.csh:1:1: error: synthetic Charmxi error" "$tmp/log"
 grep -Fq 'error: synthetic Charmxi error' "$tmp/log"
 grep -Fq 'an unrelated diagnostic line' "$tmp/log"
 
