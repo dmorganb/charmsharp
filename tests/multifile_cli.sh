@@ -69,4 +69,26 @@ if "$compiler" --module Simulation --out-dir "$tmp/collide" "$tmp/Worker.csh" "$
 fi
 # -o --build should not run charmc before recognizing output collisions.
 grep -Eq 'duplicate Charm# declaration|duplicate multi-file output basename' "$tmp/log"
+
+# A fake Charmxi failure checks location remapping without depending on charmc
+# availability in the unit-test matrix.
+mkdir -p "$tmp/fake-bin"
+cat >"$tmp/fake-bin/charmc" <<'EOF'
+#!/bin/sh
+line=$(grep -n 'chare Worker' Simulation.ci | cut -d: -f1)
+printf 'Simulation.ci:%s:1: error: synthetic Charmxi error\n' "$line" >&2
+printf 'an unrelated diagnostic line\n' >&2
+exit 1
+EOF
+chmod +x "$tmp/fake-bin/charmc"
+if PATH="$tmp/fake-bin:$PATH" "$compiler" --build -o "$tmp/fake-executable" \
+     --module Simulation --out-dir "$tmp/mapped" "$tmp/Main.csh" "$tmp/Worker.csh" \
+     >"$tmp/log" 2>&1; then
+  echo 'synthetic Charmxi error was accepted' >&2
+  exit 1
+fi
+grep -Fq "$tmp/Worker.csh:1: (from Simulation.ci:" "$tmp/log"
+grep -Fq 'error: synthetic Charmxi error' "$tmp/log"
+grep -Fq 'an unrelated diagnostic line' "$tmp/log"
+
 echo 'MULTIFILE CLI PASS'
