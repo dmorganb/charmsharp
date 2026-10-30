@@ -304,7 +304,8 @@ int main(int argc, char** argv) {
                 std::cout.flush();
                 run_charmc_mapped(output_dir, module + ".ci", combined.interface_locations);
                 if (!combined.specialization_interface_source.empty())
-                    run_charmc(output_dir, {module + "_specializations.ci"});
+                    run_charmc_mapped(output_dir, module + "_specializations.ci",
+                                     combined.specialization_locations);
                 std::vector<std::string> objects;
                 for (std::size_t i = 0; i < input_paths.size(); ++i) {
                     const auto object = input_paths[i].stem().string() + ".o";
