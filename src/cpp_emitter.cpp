@@ -47,7 +47,8 @@ std::size_t template_start(std::string_view source, const ParallelDeclaration& c
     return pos;
 }
 
-std::string rewrite(std::string text, std::vector<Edit> edits, std::size_t base) {
+std::string rewrite(std::string text, std::vector<Edit> edits, std::size_t base,
+                    bool preserve_removed_lines = false) {
     std::stable_sort(edits.begin(), edits.end(), [](const Edit& a, const Edit& b) {
         return a.begin > b.begin;
     });
@@ -55,7 +56,15 @@ std::string rewrite(std::string text, std::vector<Edit> edits, std::size_t base)
     for (const auto& edit : edits) {
         if (edit.begin < base || edit.begin > edit.end || edit.end > boundary)
             throw std::logic_error("overlapping or invalid C++ source edits");
-        text.replace(edit.begin - base, edit.end - edit.begin, edit.replacement);
+        if (preserve_removed_lines && edit.replacement.empty()) {
+            // Keep the original source line numbers even when declarations move
+            // into the generated shared classes header.
+            const auto removed = text.substr(edit.begin - base, edit.end - edit.begin);
+            text.replace(edit.begin - base, edit.end - edit.begin,
+                         std::string(std::count(removed.begin(), removed.end(), '\n'), '\n'));
+        } else {
+            text.replace(edit.begin - base, edit.end - edit.begin, edit.replacement);
+        }
         boundary = edit.begin;
     }
     return text;
@@ -182,7 +191,7 @@ std::string emit_multi_cpp(std::string_view source, const SemanticModel& model) 
         edits.push_back({parameter.suffix.begin, parameter.suffix.end, ""});
     }
     return "#include \"" + model.module_name + "_classes.h\"\n" +
-           rewrite(std::string(source), std::move(edits), 0);
+           rewrite(std::string(source), std::move(edits), 0, true);
 }
 
 std::string emit_cpp(std::string_view source, const SemanticModel& model) {
