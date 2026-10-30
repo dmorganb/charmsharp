@@ -1,6 +1,6 @@
 # Charm# limitations and compatibility boundaries
 
-**Status:** 2026-10-29. **Target:** Charm++ v8.0.0, Charm# grammar v0.1.
+**Status:** 2026-10-30. **Target:** Charm++ v8.0.0, Charm# grammar v0.1.
 This is the central reference for **remaining** restrictions of the current
 implementation. For supported syntax, see [language coverage](language-coverage.md).
 For why a restriction exists and its test evidence, follow the links below.
@@ -33,7 +33,7 @@ prohibits a construct.
 | Parallel declarations inside namespaces, class scopes, or preprocessor conditionals | **Rejected** | Put the supported Charm# interface declaration at file scope outside conditional branches. Ordinary C++ constructs remain pass-through. |
 | Multiple Charm++ modules, `.ci extern module`/`include` and dependency graph discovery | **Not implemented** | Multiple `.csh` inputs can now form **one shared module**, but cross-module interface discovery is still not implemented. The template specialization helper module is generated only for its narrow use case. |
 | Whole-program analysis and cross-file declaration discovery | **Not implemented** | A shared-module invocation accepts several `.csh` inputs, validates declared-name collisions, and merges interface metadata. It does not infer arbitrary C++ cross-file dependencies; explicit scalar-template specialization registration and PUPable classes are supported in the multi-input path, but arbitrary cross-file discovery is not. |
-| Source maps and generated `#line` directives | **Not implemented** | Downstream C++/Charmxi diagnostics can refer to generated source locations. |
+| Source maps and generated `#line` directives | **Partially implemented** | Multi-file C++ declarations and preserved source bodies use `#line`; Charmxi errors in generated `.ci` declarations, template specializations and lowered SDAG lines map to original `.csh` locations. Errors emitted later by the C++ compiler from Charmxi-generated SDAG continuation code may still name generated `.ci`/C++ files. |
 | Native Charmxi/XI-Builder backend | **Not implemented** | Charm# emits text-based `.ci` and C++ then invokes the ordinary Charm++ toolchain; there is no new runtime. |
 
 ## Parallel objects, inheritance, and templates
