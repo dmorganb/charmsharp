@@ -128,7 +128,24 @@ int main(int argc, char** argv) {
             std::vector<std::string_view> views;
             for (const auto& path : input_paths) source_texts.push_back(read_file(path));
             for (const auto& source : source_texts) views.push_back(source);
-            const auto combined = charmsharp::translate_many(views, module);
+            charmsharp::MultiGenerated combined;
+            try {
+                combined = charmsharp::translate_many(views, module);
+            } catch (const charmsharp::MultiDiagnostic& error) {
+                const auto display = [&](std::size_t index, std::size_t offset,
+                                         const std::string& message) {
+                    std::cerr << input_paths.at(index).string() << ':'
+                              << charmsharp::format_diagnostic(
+                                    source_texts.at(index), charmsharp::Diagnostic(message, offset))
+                              << '\n' << charmsharp::format_source_excerpt(
+                                    source_texts.at(index), offset) << '\n';
+                };
+                display(error.file(), error.offset(), error.what());
+                if (error.has_previous())
+                    display(error.previous_file(), error.previous_offset(),
+                            "note: previous declaration is here");
+                return 1;
+            }
             const auto ci = output_dir / (module + ".ci");
             const auto header = output_dir / (module + "_classes.h");
             const auto registration = output_dir / (module + "_registry.cpp");

@@ -48,6 +48,18 @@ if "$compiler" --module Simulation --out-dir "$tmp/repeated" "$tmp/Worker.csh" "
   exit 1
 fi
 grep -q 'duplicate Charm# declaration' "$tmp/log"
+grep -Fq "$tmp/Repeated.csh:1:7:" "$tmp/log"
+grep -Fq "$tmp/Worker.csh:1:7: note: previous declaration is here" "$tmp/log"
+cat >"$tmp/Invalid.csh" <<'EOF'
+chare {
+};
+EOF
+if "$compiler" --module Simulation --out-dir "$tmp/invalid" "$tmp/Main.csh" "$tmp/Invalid.csh" >"$tmp/log" 2>&1; then
+  echo 'invalid second source was accepted' >&2
+  exit 1
+fi
+grep -Fq "$tmp/Invalid.csh:1:" "$tmp/log"
+grep -q 'expected a parallel type name' "$tmp/log"
 mkdir -p "$tmp/other"
 cp "$tmp/Worker.csh" "$tmp/other/Worker.csh"
 if "$compiler" --module Simulation --out-dir "$tmp/collide" "$tmp/Worker.csh" "$tmp/other/Worker.csh" >"$tmp/log" 2>&1; then
