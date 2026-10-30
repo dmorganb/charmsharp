@@ -10,8 +10,8 @@ the generated `.ci`. Keep the emitted Charm++ interface semantically unchanged.
 
 - Build a line mapping alongside `emit_ci_body`, using semantic source ranges.
   Map each emitted message, readonly, init hook, parallel declaration and entry
-  to its original input file and line. For multi-line SDAG bodies, use finer
-  source ranges rather than assigning every error to the enclosing entry.
+  to its original input file and line. For multi-line SDAG bodies, conservatively attribute generated lines to
+  the enclosing SDAG body; exact statement mapping is deferred.
 - Preserve Charmxi's output verbatim where a line cannot be mapped reliably;
   never fabricate a source location. Preserve secondary diagnostic lines.
 - In the `--build` path, capture only the Charmxi invocation's stderr, map
@@ -25,14 +25,16 @@ the generated `.ci`. Keep the emitted Charm++ interface semantically unchanged.
 
 ## Validation required before merge
 
-1. Two Charm# inputs in one module; intentionally invalid Charmxi declaration
-   in the second source. Assert the reported `.csh` path and source line.
-2. Distinguish diagnostics from two different files and multiple declarations.
-3. A multiline declaration and an SDAG-related error near the mapped region.
-4. Unknown/unmappable Charmxi output passes through verbatim.
-5. Paths with spaces or quoted characters do not break matching or execution.
-6. GCC, Clang, macOS, sanitizers, pinned Charm++ v8.0.0 integration and
+1. Real pinned Charmxi v8.0.0 negative fixtures attribute malformed generated
+   declarations to both `Main.csh` and `Worker.csh`.
+2. A synthetic Charmxi fixture tests preservation of unknown lines and
+   oversized line numbers.
+3. A source path containing spaces maps correctly without shell execution.
+4. GCC, Clang, macOS, sanitizers, Charm++ v8.0.0 integration and
    single-file output-equivalence all pass.
+
+Follow-ups: exact SDAG statement mapping, specialization `.ci` diagnostics,
+quoted-path edge cases, and additional multiline declaration cases.
 
 ## Scope boundary
 
