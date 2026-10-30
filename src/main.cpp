@@ -280,6 +280,39 @@ int main(int argc, char** argv) {
                     throw std::runtime_error("native object collides with generated object: " +
                                              path.string());
             }
+            if (build) {
+                // Every object is emitted into output_dir, regardless of its
+                // input directory. Validate the complete namespace before writing.
+                std::vector<std::pair<std::string, fs::path>> objects;
+                const auto claim_object = [&](const std::string& name, const fs::path& source) {
+                    const auto previous = std::find_if(objects.begin(), objects.end(),
+                        [&](const auto& object) { return object.first == name; });
+                    if (previous != objects.end())
+                        throw std::runtime_error("object output collision at " +
+                            (output_dir / name).string() + ": " +
+                            previous->second.string() + " and " + source.string());
+                    objects.emplace_back(name, source);
+                };
+                for (const auto& path : input_paths)
+                    claim_object(path.stem().string() + ".o", path);
+                claim_object(module + "_registry.o", registration);
+                for (const auto& path : native_paths)
+                    claim_object(path.stem().string() + "_native.o", path);
+
+                const auto target = fs::absolute(executable).lexically_normal();
+                for (const auto& output : outputs)
+                    if (fs::absolute(output).lexically_normal() == target)
+                        throw std::runtime_error("executable collides with generated output: " +
+                                                 output.string());
+                for (const auto& object : objects)
+                    if (fs::absolute(output_dir / object.first).lexically_normal() == target)
+                        throw std::runtime_error("executable collides with object output: " +
+                                                 (output_dir / object.first).string());
+                for (const auto& path : native_paths)
+                    if (fs::absolute(path).lexically_normal() == target)
+                        throw std::runtime_error("executable collides with native source: " +
+                                                 path.string());
+            }
             if (!force)
                 for (const auto& output : outputs)
                     if (fs::exists(output))
