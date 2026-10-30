@@ -38,12 +38,35 @@ std::string signature(std::string_view source, const EntryDeclaration& entry) {
     return result;
 }
 
-std::string emit_sdag_node(std::string_view text, const EntryDeclaration& entry,
-                           const SdagNode& node);
+// Carry original byte offsets through SDAG's textual insertions. The emitted
+// interface stays byte-identical; only diagnostic metadata changes.
+struct SdagOutput {
+    std::string text;
+    std::vector<std::size_t> source_offsets;
 
-std::string emit_sdag_nodes(std::string_view text, const EntryDeclaration& entry,
-                            const std::vector<SdagNode>& nodes) {
-    std::string result;
+    void literal(std::string_view value, std::size_t offset) {
+        text += value;
+        source_offsets.insert(source_offsets.end(), value.size(), offset);
+    }
+
+    void copy(std::string_view source, std::size_t begin, std::size_t end) {
+        text += source.substr(begin, end - begin);
+        for (auto i = begin; i < end; ++i) source_offsets.push_back(i);
+    }
+
+    void append(SdagOutput other) {
+        text += other.text;
+        source_offsets.insert(source_offsets.end(),
+                              other.source_offsets.begin(), other.source_offsets.end());
+    }
+};
+
+SdagOutput emit_sdag_node(std::string_view text, const EntryDeclaration& entry,
+                          const SdagNode& node);
+
+SdagOutput emit_sdag_nodes(std::string_view text, const EntryDeclaration& entry,
+                           const std::vector<SdagNode>& nodes) {
+    SdagOutput result;
     for (std::size_t n = 0; n < nodes.size();) {
         const auto& node = nodes[n];
         if (node.kind == SdagKind::Ordinary) {
@@ -51,39 +74,49 @@ std::string emit_sdag_nodes(std::string_view text, const EntryDeclaration& entry
             while (last + 1 < nodes.size() &&
                    nodes[last + 1].kind == SdagKind::Ordinary)
                 ++last;
-            result += "serial {\n";
-            result += std::string(text.substr(node.begin, nodes[last].end - node.begin));
-            result += "\n}\n";
+            result.literal("serial {\n", node.begin);
+            result.copy(text, node.begin, nodes[last].end);
+            result.literal("\n}\n", nodes[last].end);
             n = last + 1;
             continue;
         }
-        result += emit_sdag_node(text, entry, node);
-        result += "\n";
+        result.append(emit_sdag_node(text, entry, node));
+        result.literal("\n", node.end);
         ++n;
     }
     return result;
 }
 
-std::string emit_sdag_node(std::string_view text, const EntryDeclaration& entry,
-                           const SdagNode& node) {
-    if (node.kind == SdagKind::Ordinary)
-        return "serial { " + std::string(text.substr(node.begin, node.end - node.begin)) + " }";
-    if (node.kind == SdagKind::Serial)
-        return std::string(text.substr(node.begin, node.end - node.begin));
-    if (node.kind == SdagKind::Block)
-        return "{\n" + emit_sdag_nodes(text, entry, node.children) + "\n}";
+SdagOutput emit_sdag_node(std::string_view text, const EntryDeclaration& entry,
+                          const SdagNode& node) {
+    SdagOutput result;
+    if (node.kind == SdagKind::Ordinary) {
+        result.literal("serial { ", node.begin);
+        result.copy(text, node.begin, node.end);
+        result.literal(" }", node.end);
+        return result;
+    }
+    if (node.kind == SdagKind::Serial) {
+        result.copy(text, node.begin, node.end);
+        return result;
+    }
+    if (node.kind == SdagKind::Block) {
+        result.literal("{\n", node.begin);
+        result.append(emit_sdag_nodes(text, entry, node.children));
+        result.literal("\n}", node.end - 1);
+        return result;
+    }
     if (node.kind == SdagKind::If || node.kind == SdagKind::For ||
         node.kind == SdagKind::While || node.kind == SdagKind::Forall ||
         node.kind == SdagKind::Overlap || node.kind == SdagKind::Case) {
-        std::string lowered;
         auto cursor = node.begin;
         for (const auto& child : node.children) {
-            lowered += std::string(text.substr(cursor, child.begin - cursor));
-            lowered += emit_sdag_node(text, entry, child);
+            result.copy(text, cursor, child.begin);
+            result.append(emit_sdag_node(text, entry, child));
             cursor = child.end;
         }
-        lowered += std::string(text.substr(cursor, node.end - cursor));
-        return lowered;
+        result.copy(text, cursor, node.end);
+        return result;
     }
     if (node.kind != SdagKind::When)
         throw std::logic_error("unsupported validated SDAG node");
@@ -94,11 +127,14 @@ std::string emit_sdag_node(std::string_view text, const EntryDeclaration& entry,
         });
     if (match == entry.sdag_receives.end())
         throw std::logic_error("missing analyzed SDAG receive layout");
-    std::string lowered(text.substr(node.begin, node.end - node.begin));
-    if (!match->explicit_serial)
-        lowered.insert(match->body_brace_begin - (entry.sdag_body_start + node.begin),
-                       "serial ");
-    return lowered;
+    result.copy(text, node.begin, node.end);
+    if (!match->explicit_serial) {
+        const auto at = match->body_brace_begin - (entry.sdag_body_start + node.begin);
+        result.text.insert(at, "serial ");
+        result.source_offsets.insert(result.source_offsets.begin() + at, 7,
+                                     match->body_brace_begin - entry.sdag_body_start);
+    }
+    return result;
 }
 
 std::string type_kind(const ParallelDeclaration& declaration) {
@@ -120,10 +156,23 @@ std::string emit_ci_body(std::string_view source, const SemanticModel& model,
                          std::vector<CiLineOrigin>* origins) {
     std::string ci;
     std::size_t line = 1;
-    const auto add = [&](const std::string& value, std::size_t offset) {
+    const auto add = [&](const std::string& value, std::size_t offset,
+                         const std::vector<std::size_t>* byte_origins = nullptr) {
         for (std::size_t i = 0; i < value.size(); ++i) {
-            if ((i == 0 || value[i - 1] == '\n') && value[i] != '\n' && origins)
-                origins->push_back({line, offset});
+            if ((i == 0 || value[i - 1] == '\n') && value[i] != '\n' && origins) {
+                std::size_t source_offset = offset;
+                if (byte_origins && i < byte_origins->size()) {
+                    // Prefer the first non-indentation character on this line.
+                    auto first = i;
+                    while (first < byte_origins->size() &&
+                           (value[first] == ' ' || value[first] == '\t')) ++first;
+                    if (first < byte_origins->size() && value[first] != '\n')
+                        source_offset += (*byte_origins)[first];
+                    else
+                        source_offset += (*byte_origins)[i];
+                }
+                origins->push_back({line, source_offset});
+            }
             if (value[i] == '\n') ++line;
         }
         ci += value;
@@ -168,9 +217,7 @@ std::string emit_ci_body(std::string_view source, const SemanticModel& model,
             const auto lowered = emit_sdag_nodes(body, entry, entry.sdag_body->statements);
             add("        entry " + signature(source, entry) + " {\n",
                 entry.method_signature.begin);
-            // SDAG lowering can insert constructs, so this maps only to
-            // the enclosing SDAG body, not to precise statement lines.
-            add(lowered + "\n", entry.sdag_body_start);
+            add(lowered.text + "\n", entry.sdag_body_start, &lowered.source_offsets);
             add("};\n", entry.method_signature.begin);
         }
         add("    };\n", chare.name_source.begin);
