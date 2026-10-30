@@ -20,7 +20,7 @@ jobs:
             compiler: g++
           - os: ubuntu-24.04
             compiler: clang++
-          - os: macos-14
+          - os: macos-15
             compiler: clang++
     env:
       CXX: ${{ matrix.compiler }}
