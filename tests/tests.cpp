@@ -5,6 +5,7 @@
 #include "../src/ci_emitter.hpp"
 #include "../src/cpp_emitter.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <functional>
 #include <iostream>
@@ -1459,9 +1460,62 @@ void diagnostics() {
     }
 }
 
+
+void sdag_ci_statement_source_locations() {
+    constexpr std::string_view source = R"SRC(chare Worker {
+entry:
+    Worker() {}
+    void start() {
+        prepare();
+        overlap {
+            when first(int x) {
+                consume_first(x);
+            }
+            when second(int y) {
+                consume_second(y);
+            }
+        }
+        finalize();
+    }
+};
+)SRC";
+    const auto generated = charmsharp::translate_many(
+        {source}, "SDAGOrigins", {"Worker.csh"});
+    const auto check = [&](std::string_view statement) {
+        const auto generated_pos = generated.interface_source.find(statement);
+        const auto source_pos = source.find(statement);
+        if (generated_pos == std::string::npos || source_pos == std::string_view::npos)
+            throw std::runtime_error("missing SDAG origin fixture statement");
+        const auto generated_line = 1 + static_cast<std::size_t>(std::count(
+            generated.interface_source.begin(),
+            generated.interface_source.begin() + generated_pos, '\n'));
+        const auto source_line = 1 + static_cast<std::size_t>(std::count(
+            source.begin(), source.begin() + source_pos, '\n'));
+        const auto origin = std::find_if(generated.interface_locations.begin(),
+            generated.interface_locations.end(),
+            [&](const charmsharp::CiSourceLocation& location) {
+                return location.generated_line == generated_line;
+            });
+        ++checks;
+        if (origin == generated.interface_locations.end() ||
+            origin->source_line != source_line || origin->source_path != "Worker.csh") {
+            std::cerr << "incorrect SDAG mapping for " << statement
+                      << ": expected Worker.csh:" << source_line << '\n';
+            std::exit(1);
+        }
+    };
+    check("prepare();");
+    check("when first(int x)");
+    check("consume_first(x);");
+    check("when second(int y)");
+    check("consume_second(y);");
+    check("finalize();");
+}
+
 } // namespace
 
 int main() {
+    sdag_ci_statement_source_locations();
     golden_counter();
     chare_template_declaration();
     explicit_chare_template_registration();
