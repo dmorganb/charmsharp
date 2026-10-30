@@ -1237,7 +1237,21 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
         for (const auto& pupable : model.pupable_classes)
             pup_forwards += "class " + pupable.name + ";\n";
 
-        body += detail::emit_ci_body(source, model, false);
+        std::vector<detail::CiLineOrigin> ci_origins;
+        const auto ci_base_line = 1 + std::count(body.begin(), body.end(), '\n');
+        const auto ci_piece = detail::emit_ci_body(source, model, false, &ci_origins);
+        if (!source_paths.empty()) {
+            for (const auto& origin : ci_origins) {
+                const auto bounded = std::min(origin.source_offset, source.size());
+                result.interface_locations.push_back({
+                    ci_base_line + origin.generated_line,
+                    std::string(source_paths[file_index]),
+                    1 + static_cast<std::size_t>(
+                        std::count(source.begin(), source.begin() + bounded, '\n'))
+                });
+            }
+        }
+        body += ci_piece;
         specializations += detail::emit_registration_ci_body(model);
         if (std::any_of(model.parallel_types.begin(), model.parallel_types.end(),
                 [](const detail::ParallelDeclaration& chare) {
@@ -1279,9 +1293,11 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
         result.cpp_sources.push_back(detail::emit_multi_cpp(source, model));
         ++file_index;
     }
-    if (!specializations.empty())
+    if (!specializations.empty()) {
         body = "    extern module " + std::string(module_name) +
                "_specializations;\n" + body;
+        for (auto& origin : result.interface_locations) ++origin.generated_line;
+    }
     result.interface_source = std::string(mains == 1 ? "mainmodule " : "module ") +
                               std::string(module_name) + " {\n" + body + "};\n";
     if (has_templates)

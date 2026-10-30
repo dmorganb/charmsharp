@@ -60,3 +60,39 @@ EOF
 grep -Eq 'Broken\.csh:3(:[0-9]+)?:' "$out/compiler_errors.log"
 grep -Eq 'Broken\.csh:9(:[0-9]+)?:' "$out/compiler_errors.log"
 grep -Eq 'Broken\.csh:7(:[0-9]+)?:' "$out/compiler_errors.log"
+
+
+# Exercise real Charmxi error formatting through the Charm# --build driver.
+# The wrapper injects a malformed token into a generated interface immediately
+# before invoking the installed pinned Charm++ toolchain.
+real_charmc="$(command -v charmc)"
+mkdir -p "$out/charmxi-wrapper"
+cat >"$out/charmxi-wrapper/charmc" <<'EOF'
+#!/bin/sh
+case "$CHARMSHARP_TEST_BAD_DECL" in
+    Main) sed 's/mainchare Main {/mainchare @@@ Main {/' "$1" >"$1.injected" ;;
+    Worker) sed 's/chare Worker {/chare @@@ Worker {/' "$1" >"$1.injected" ;;
+    *) exit 3 ;;
+esac
+mv "$1.injected" "$1"
+exec "$CHARMSHARP_REAL_CHARMC" "$@"
+EOF
+chmod +x "$out/charmxi-wrapper/charmc"
+for declaration in Main Worker; do
+    if PATH="$out/charmxi-wrapper:$PATH" \
+        CHARMSHARP_REAL_CHARMC="$real_charmc" \
+        CHARMSHARP_TEST_BAD_DECL="$declaration" \
+        "$repo/build/charmsharp" --build --module BrokenXi \
+        --out-dir "$out/charmxi-$declaration" -o "$out/invalid-$declaration" \
+        "$repo/tests/multifile/Main.csh" "$repo/tests/multifile/Worker.csh" \
+        >"$out/charmxi-$declaration.log" 2>&1; then
+        echo "real Charmxi unexpectedly accepted malformed $declaration" >&2
+        exit 1
+    fi
+    if ! grep -Eq "$repo/tests/multifile/$declaration\.csh:[0-9]+:" \
+        "$out/charmxi-$declaration.log"; then
+        echo "Charmxi did not map $declaration to its source:" >&2
+        sed -n '1,120p' "$out/charmxi-$declaration.log" >&2
+        exit 1
+    fi
+done

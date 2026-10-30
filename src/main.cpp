@@ -8,6 +8,8 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <cctype>
+#include <charconv>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -48,6 +50,96 @@ void run_charmc(const fs::path& directory, std::vector<std::string> args) {
         throw std::runtime_error("charmc terminated by signal " + std::to_string(WTERMSIG(status)));
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
         throw std::runtime_error("charmc failed with exit status " + std::to_string(WEXITSTATUS(status)));
+}
+
+
+void run_charmc_mapped(const fs::path& directory, const std::string& ci_name,
+                       const std::vector<charmsharp::CiSourceLocation>& origins) {
+    int pipes[2];
+    if (pipe(pipes) != 0) throw std::runtime_error("cannot capture Charmxi diagnostics");
+    const pid_t child = fork();
+    if (child < 0) {
+        close(pipes[0]); close(pipes[1]);
+        throw std::runtime_error("cannot start Charmxi diagnostic capture");
+    }
+    if (child == 0) {
+        close(pipes[0]);
+        if (dup2(pipes[1], STDERR_FILENO) < 0) _exit(127);
+        close(pipes[1]);
+        try { run_charmc(directory, {ci_name}); }
+        catch (const std::exception& error) {
+            std::cerr << "charmsharp: " << error.what() << '\n';
+            _exit(1);
+        }
+        _exit(0);
+    }
+    close(pipes[1]);
+    std::string output;
+    char buffer[4096];
+    for (;;) {
+        const ssize_t length = read(pipes[0], buffer, sizeof(buffer));
+        if (length > 0) {
+            output.append(buffer, static_cast<std::size_t>(length));
+        } else if (length < 0 && errno == EINTR) {
+            continue;
+        } else {
+            break;
+        }
+    }
+    close(pipes[0]);
+    // Reap the child before processing external diagnostic text.
+    int status;
+    while (waitpid(child, &status, 0) < 0) {
+        if (errno != EINTR) throw std::runtime_error("cannot wait for Charmxi");
+    }
+    for (std::size_t start = 0; start < output.size();) {
+        const auto end = output.find('\n', start);
+        const auto text = output.substr(start, end == std::string::npos ?
+                                       std::string::npos : end - start);
+        bool mapped = false;
+        // Charmxi v8.0.0 may report against charmc's preprocessed
+        // "Module.ci.<pid>.TMP.i" rather than "Module.ci".
+        const auto pos = text.find(ci_name);
+        if (pos != std::string::npos && (pos == 0 || text[pos - 1] == '/')) {
+            const auto name_end = pos + ci_name.size();
+            const auto colon = text.find(':', name_end);
+            const auto suffix = colon == std::string::npos ? std::string_view{} :
+                std::string_view(text).substr(name_end, colon - name_end);
+            bool recognized = suffix.empty();
+            if (!recognized && suffix.size() > 6 && suffix.front() == '.' &&
+                suffix.ends_with(".TMP.i")) {
+                const auto pid = suffix.substr(1, suffix.size() - 7);
+                recognized = !pid.empty() &&
+                    std::all_of(pid.begin(), pid.end(), [](char c) {
+                        return std::isdigit(static_cast<unsigned char>(c));
+                    });
+            }
+            auto p = colon == std::string::npos ? text.size() : colon + 1;
+            const auto digit_start = p;
+            while (p < text.size() && std::isdigit(static_cast<unsigned char>(text[p]))) ++p;
+            if (recognized && p > digit_start && p < text.size() && text[p] == ':') {
+                std::size_t generated_line = 0;
+                const auto [parsed_end, parse_error] = std::from_chars(
+                    text.data() + digit_start, text.data() + p, generated_line);
+                const auto origin = std::find_if(origins.begin(), origins.end(),
+                    [&](const charmsharp::CiSourceLocation& loc) {
+                        return parse_error == std::errc{} && parsed_end == text.data() + p &&
+                               loc.generated_line == generated_line;
+                    });
+                if (origin != origins.end()) {
+                    std::cerr << origin->source_path << ':' << origin->source_line
+                              << text.substr(p) << " [generated from "
+                              << ci_name << ':' << generated_line << "]\n";
+                    mapped = true;
+                }
+            }
+        }
+        if (!mapped) std::cerr << text << '\n';
+        if (end == std::string::npos) break;
+        start = end + 1;
+    }
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+        throw std::runtime_error("charmc failed while processing " + ci_name);
 }
 
 std::string cpp_line_directive(const fs::path& path) {
@@ -210,7 +302,7 @@ int main(int argc, char** argv) {
             for (const auto& output : outputs) std::cout << output << '\n';
             if (build) {
                 std::cout.flush();
-                run_charmc(output_dir, {module + ".ci"});
+                run_charmc_mapped(output_dir, module + ".ci", combined.interface_locations);
                 if (!combined.specialization_interface_source.empty())
                     run_charmc(output_dir, {module + "_specializations.ci"});
                 std::vector<std::string> objects;
