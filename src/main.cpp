@@ -98,8 +98,8 @@ void run_charmc_mapped(const fs::path& directory, const std::string& ci_name,
                     });
                 if (origin != origins.end()) {
                     std::cerr << origin->source_path << ':' << origin->source_line
-                              << ": (from " << ci_name << ':' << generated_line
-                              << ')' << text.substr(p) << '\n';
+                              << text.substr(p) << " [generated from "
+                              << ci_name << ':' << generated_line << "]\n";
                     mapped = true;
                 }
             }
