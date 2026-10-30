@@ -162,11 +162,12 @@ std::string emit_shared_classes(std::string_view source, const SemanticModel& mo
         if (!source_path.empty()) {
             std::string escaped;
             for (const char c : source_path) {
-                if (c == '\\\\' || c == '"') escaped += '\\\\';
+                if (c == '\\' || c == '"') escaped += '\\';
                 escaped += c;
             }
-            const std::size_t line = 1 + std::count(source.begin(), source.begin() + decl.begin, '\\n');
-            result += "#line " + std::to_string(line) + " \\"" + escaped + "\\"\\n";
+            const std::size_t line =
+                1 + std::count(source.begin(), source.begin() + decl.begin, '\n');
+            result += "#line " + std::to_string(line) + " \"" + escaped + "\"\n";
         }
         result += rewrite(std::string(source.substr(decl.begin, decl.end - decl.begin)),
                           decl.edits, decl.begin) + "\n";
