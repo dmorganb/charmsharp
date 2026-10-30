@@ -56,7 +56,7 @@ std::string cpp_line_directive(const fs::path& path) {
         if (c == '\\' || c == '"') escaped += '\\';
         escaped += c;
     }
-    return "#line 1 \\"" + escaped + "\\"\\n";
+    return "#line 1 \"" + escaped + "\"\n";
 }
 
 std::string read_file(const fs::path& path) {
