@@ -1,0 +1,155 @@
+# Multi-file Charm# design: shared Charm++ module
+
+Status: **implementation milestone in progress**. This document describes a
+proposed CLI, not an already implemented feature.
+
+## Desired project layout
+
+```text
+Main.csh
+Worker.csh
+Physics.cpp
+Particle.h
+Makefile
+```
+
+`charmsharp --module Simulation Main.csh Worker.csh` should produce
+`Simulation.ci`, `Main.cpp` and `Worker.cpp` with **one shared Charm++
+module**. Ordinary `.cpp` and `.h` sources should remain native C++ inputs
+to charmc, not be silently transpiled.
+
+## Essential implementation constraints
+
+1. Current `translate(source,module)` produces one complete `module` or
+   `mainmodule` interface. The shared-module frontend needs a project-level
+   combination of **validated per-file semantic models**, not merely
+   concatenation of several complete `.ci` module wrappers.
+2. Current C++ emission appends `#include "<module>.def.h"` to every
+   generated `.cpp`. That is not legal for multiple translation units
+   sharing the same module: registration definitions would be duplicated.
+   Include the shared `.def.h` **exactly once** in a suitable registration
+   translation unit, with the requisite chare class definitions visible.
+   A naive standalone registration `.cpp` cannot compile if class definitions
+   are not visible, so shared generated headers or another validated
+   strategy are required.
+3. The shared `.decl.h` must be generated before any implementation compiles.
+   Cross-file references may need generated forward/type declarations and
+   consistent public headers. Charm# must not infer arbitrary C++ dependencies.
+4. One `mainmodule` designation across all sources; diagnose multiple
+   mainchares and duplicate interface identifiers. Source-located errors
+   must identify the originating `.csh` input.
+5. Registration metadata, SDAG code and template specializations must be
+   merged without dropping per-file source-range tracking. Explicit
+   registration remains a legitimate cross-file fallback.
+6. The build may need to recompile dependent translation units when a shared
+   interface changes, but body-only edits should not force regeneration of
+   unchanged `.ci` output.
+
+## Initial test baseline
+
+`tests/multifile/` is an **independently handwritten Charm++ fixture**:
+one `Simulation.ci`, `Main.cpp`, `Worker.cpp`, and `Worker.h`.
+The `build.sh` script compiles each C++ source separately, links them,
+and runs `+p2`. This establishes the target artifact and registration
+conventions before introducing a multi-file Charm# compiler path.
+
+## Acceptance for implementation PRs
+
+- Shared CI interface and two independent generated C++ translation units,
+  both buildable using pinned Charm++ v8.0.0.
+- Runtime communication across PEs equals the handwritten fixture.
+- Ordinary C++ sources can link into the same application unchanged.
+- Single-input CLI remains byte-equivalent on existing fixtures.
+- Invalid duplicate entry/types, multiple mainchares and basename collisions
+  yield actionable errors.
+- Makefile integration supports declared dependencies and incremental updates.
+
+## Current branch implementation
+
+The CLI now accepts multiple `.csh` inputs under one module and emits
+one `.ci`, a class header, one registration `.cpp`, and one implementation
+`.cpp` per input. Source files are independently compiled through `--build`,
+and native C++ files can be linked unchanged. Explicit scalar-chare template registrations and PUPable classes are supported
+and validated by pinned-runtime fixtures; arbitrary cross-file inference is not.
+
+## Shared-registration implementation
+
+The multi-input compiler path now emits one shared `<module>_classes.h`
+containing transformed parallel/message class definitions, plus a single
+`<module>_registry.cpp` that includes the shared header followed by
+`<module>.def.h`. The per-source C++ translation units include the shared
+class header but **do not** include `.def.h`. This allows each generated
+C++ file to be compiled independently and linked with exactly one registration
+object. The CLI's multi-input `--build` invokes that pipeline. The supported subset includes explicitly registered scalar chare templates
+and PUPable declarations, validated with executable multi-PE fixtures. Ordinary cross-file C++ header dependencies remain
+the user's responsibility.
+
+The integrated multi-input `--build` path also accepts ordinary `.cpp`,
+`.cc` and `.C` files, compiling them directly with `charmc` and linking
+them with the generated objects. The source files are **not** rewritten or
+transpiled. The end-to-end fixture verifies both explicit Make-style linking
+and the integrated build driver. Build dependency tracking beyond invoking the
+compiler remains the responsibility of Make/CMake.
+
+## Validation status
+
+A real multi-source Charm# fixture and separate native `Physics.cpp` fixture
+are exercised under Charm++ v8.0.0 in the repository CI. The script tests
+manual per-TU compile/link **and** the integrated multi-input `--build` path.
+The full legacy compiler/regression suite is also run to guard single-file
+compatibility. More language feature combinations (especially template and
+PUPable registration across inputs) remain open before closing the milestone.
+
+## Cross-file registration risks and mitigations
+
+Template registration must aggregate explicit concrete specializations into one
+Charmxi module, while PUPable classes must be declared before the generated
+proxy interface and registered exactly once. These properties are now exercised
+by pinned-runtime fixtures. Duplicate declarations and output-name collisions
+remain rejected. Automatic discovery of concrete specializations from arbitrary
+other translation units is not implemented; use explicit registrations.
+
+## PUPable support
+
+Annotated PUPable classes now join the shared class header, while `PUPable`
+interface metadata is aggregated in the common `.ci`. The existing C++
+emitter inserts `PUPable_decl` and the single registration translation unit
+includes `.def.h`. The cross-PE transfer fixture validates deserialization on PE 1.
+
+## Scalar template registration integration
+
+The shared-module aggregation now merges already-lowered template declarations
+and the explicit specialization `.ci` module. Template class definitions
+are collected into the common class header, with Charmxi's
+`CK_TEMPLATES_ONLY` glue included once. Registration metadata is emitted in
+a single specializations module and the registry translation unit includes
+its generated `.decl.h` and `.def.h` once. Executable pinned-runtime validation covers one and two explicitly registered
+chare templates; automatic cross-file specialization discovery remains optional.
+
+## Cross-file registration validation
+
+The multi-file PUPable fixture defines an annotated `PUP::able` class in a
+separate source from a group entry that transfers `std::shared_ptr<State>`
+across processing elements. The generated interface contains `PUPable State`,
+and the shared class header includes the generated `PUPable_decl`. The
+pinned-runtime executable expects to deserialize the value on PE 1.
+
+The explicit scalar-template fixture defines `GenericWorker<T>` in one
+`.csh` and uses `CProxy_GenericWorker<int>` in another, with
+`template chare GenericWorker<int>;` supplied in the defining source. A second
+fixture combines multiple definitions and concrete registrations into the
+single specialization module. This is **not** general cross-file automatic
+specialization discovery. Source order and external C++ dependencies remain
+subject to the native toolchain.
+
+## Semantic-model emission refactor
+
+The combined module now obtains interface declaration fragments directly from
+`emit_ci_body` and specialization fragments from `emit_registration_ci_body`.
+The C++ backend emits shared classes and per-source implementations directly
+from their validated `SemanticModel` source ranges. It no longer reparses
+complete generated `.cpp` source to find classes, nor extracts declarations
+by slicing generated `.ci` wrappers or template-header footers. Shared ordinary
+C++ dependencies must be provided as conventional `#include` headers; the
+backend preserves includes before generated declarations rather than trying to
+implement full C++ dependency analysis.

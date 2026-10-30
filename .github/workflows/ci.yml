@@ -111,6 +111,26 @@ jobs:
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
           make charm-run
 
+      - name: Validate independent translation units sharing one Charm++ module
+        run: |
+          export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
+          bash tests/multifile/build.sh
+
+      - name: Translate and link multiple Charm# sources with one shared interface
+        run: |
+          export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
+          bash tests/multifile/charmsharp_build.sh
+
+      - name: Exercise PUPable transfer across Charm# source files
+        run: |
+          export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
+          bash tests/multifile/pup_build.sh
+
+      - name: Exercise explicitly registered template chare across Charm# files
+        run: |
+          export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"
+          bash tests/multifile/template_build.sh
+
       - name: Build and execute implicit chare Main convention
         run: |
           export PATH="$RUNNER_TEMP/charm/multicore-linux-x86_64/bin:$PATH"

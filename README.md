@@ -272,3 +272,49 @@ validated. It would retain Charm++'s generated C++ bindings and existing
 runtime.
 
 
+
+## Multi-file applications (shared Charm++ module)
+
+The multi-input compiler path accepts multiple `.csh` source files under one
+module name and emits one `.ci`, a shared generated class header, separate
+C++ implementation files, and a single module-registration source:
+
+```sh
+charmsharp --module Simulation --out-dir generated Main.csh Worker.csh
+```
+
+`--build` additionally compiles and links native C++ sources, which are passed
+to `charmc` unchanged:
+
+```sh
+charmsharp --build --module Simulation --out-dir generated \
+  Main.csh Worker.csh Physics.cpp -o simulation
+```
+
+Generated files: `Simulation.ci`, `Simulation_classes.h`,
+`Simulation_registry.cpp`, `Main.cpp` and `Worker.cpp`. The shared class
+header is needed so generated registration code sees every parallel class.
+The module's `.def.h` is included **only** by `Simulation_registry.cpp`.
+You may instead compile these outputs separately using a Makefile; see
+`tests/multifile/charmsharp_build.sh`. The legacy single-input output remains
+unchanged.
+
+Shared-module aggregation now supports the already validated subset of scalar
+chare templates with **explicit** concrete-specialization registration and
+PUPable declarations; see pinned multi-PE runtime fixtures. It does not
+automatically discover arbitrary cross-file specializations, and requires
+type/header dependencies to be supplied using ordinary project headers.
+General cross-module declarations are still outside this multi-input path.
+For different Charm++ modules, continue to use separate invocations. Native
+Make/CMake remains responsible for dependency tracking and incremental builds.
+
+### Shared types in multi-file projects
+
+Put ordinary C++ types used by Charm# class fields, entry signatures, or inline
+methods in normal headers and include those headers from the relevant `.csh`
+sources. The shared-module backend collects those `#include` directives before
+emitting common class declarations. It does **not** infer and move arbitrary
+non-Charm# C++ declarations into generated headers. For example, a `Worker`
+with a `SharedConfig` field should include `SharedConfig.h` rather than define
+`struct SharedConfig` only in an unrelated `.csh` source. See
+`tests/multifile/SharedConfig.h` and the Worker fixture.

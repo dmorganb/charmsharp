@@ -5,7 +5,7 @@ CPPFLAGS += -Iinclude
 LIB_SOURCES = src/lexer.cpp src/translator.cpp src/sdag.cpp src/ci_emitter.cpp src/cpp_emitter.cpp
 HEADERS = src/lexer.hpp src/sdag.hpp src/semantic.hpp src/ci_emitter.hpp src/cpp_emitter.hpp include/charmsharp/translator.hpp
 
-.PHONY: all test charm-check charm-run charm-objects charm-threaded charm-message charm-readonly charm-inheritance charm-message-inheritance charm-parallel-inheritance charm-benchmark-primes charm-benchmark-reduction charm-ctor-initializers charm-benchmark-jacobi2d charm-marshalled-arrays charm-sdag-when charm-sdag-sequence charm-sdag-control charm-benchmark-prefix-sum charm-sdag-extended charm-implicit-main charm-instrumentation-attributes charm-ownership-exclusive charm-direct-call charm-template-declaration charm-template-registration charm-template-auto-registration charm-template-multi-specialization charm-template-cross-tu charm-template-header-order charm-variable-message charm-readonly-message charm-init-hooks charm-pupable clean
+.PHONY: all test charm-check charm-run charm-multifile charm-objects charm-threaded charm-message charm-readonly charm-inheritance charm-message-inheritance charm-parallel-inheritance charm-benchmark-primes charm-benchmark-reduction charm-ctor-initializers charm-benchmark-jacobi2d charm-marshalled-arrays charm-sdag-when charm-sdag-sequence charm-sdag-control charm-benchmark-prefix-sum charm-sdag-extended charm-implicit-main charm-instrumentation-attributes charm-ownership-exclusive charm-direct-call charm-template-declaration charm-template-registration charm-template-auto-registration charm-template-multi-specialization charm-template-cross-tu charm-template-header-order charm-variable-message charm-readonly-message charm-init-hooks charm-pupable clean
 all: build/charmsharp
 
 build/charmsharp: src/main.cpp $(LIB_SOURCES) $(HEADERS)
@@ -20,6 +20,7 @@ test: build/tests build/charmsharp
 	./build/tests
 	sh tests/cli_smoke.sh ./build/charmsharp examples/Counter.csh
 	sh tests/build_cli.sh ./build/charmsharp examples/Hello.csh
+	sh tests/multifile_cli.sh ./build/charmsharp
 
 charm-check: build/charmsharp
 	sh tests/charm_smoke.sh ./build/charmsharp examples/Counter.csh
@@ -123,3 +124,6 @@ charm-init-hooks: build/charmsharp
 
 charm-pupable: build/charmsharp
 	sh tests/pupable_integration.sh ./build/charmsharp
+
+charm-multifile: build/charmsharp
+	bash tests/multifile/charmsharp_build.sh

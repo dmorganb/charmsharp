@@ -34,7 +34,7 @@ unsupported entry attributes, return types, and remaining declaration features.
 | 7.2 | Complete (restricted local-message pointer) | Readonly message pointers and multi-PE initialization |
 | 7.3 | Complete (restricted top-level void functions) | `initnode` and `initproc` initialization hooks |
 | 7.4 | Complete (restricted explicit registration) | PUPable class registration, native Charmxi macro plumbing, and pinned cross-PE polymorphic transfer versus handwritten Charm++ |
-| Later | Planned | Richer entries, multi-file/module integration, source mapping |
+| Multi-file shared module | In progress (restricted executable subset) | Multiple .csh files aggregate into one .ci with separate C++ objects, shared generated class header and single registration TU; mixed native C++ --build validated; explicit scalar templates and PUPable cross-file integration tested; broader cross-file semantics remain |\n| Later | Planned | Richer entries, cross-module dependency discovery, source mapping |
 
 ## Fixed-size message slice (phase 3.1)
 

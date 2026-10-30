@@ -115,10 +115,10 @@ std::string type_kind(const ParallelDeclaration& declaration) {
 
 } // namespace
 
-std::string emit_ci(std::string_view source, const SemanticModel& model) {
-    std::string ci = std::string(model.is_mainmodule ? "mainmodule " : "module ") +
-                     model.module_name + " {\n";
-    if (!model.template_registrations.empty())
+std::string emit_ci_body(std::string_view source, const SemanticModel& model,
+                         bool include_specialization_extern) {
+    std::string ci;
+    if (include_specialization_extern && !model.template_registrations.empty())
         ci += "    extern module " + model.module_name + "_specializations;\n";
     for (const auto& pupable : model.pupable_classes)
         ci += "    PUPable " + pupable.name + ";\n";
@@ -160,16 +160,26 @@ std::string emit_ci(std::string_view source, const SemanticModel& model) {
         }
         ci += "    };\n";
     }
-    ci += "};\n";
     return ci;
+}
+
+std::string emit_ci(std::string_view source, const SemanticModel& model) {
+    return std::string(model.is_mainmodule ? "mainmodule " : "module ") +
+           model.module_name + " {\n" + emit_ci_body(source, model, true) + "};\n";
+}
+
+std::string emit_registration_ci_body(const SemanticModel& model) {
+    std::string body;
+    for (const auto& registration : model.template_registrations)
+        body += "    chare " + registration.name + registration.arguments + ";\n";
+    return body;
 }
 
 std::string emit_registration_ci(const SemanticModel& model) {
     if (model.template_registrations.empty()) return {};
     std::string ci = "module " + model.module_name + "_specializations {\n";
     ci += "    extern module " + model.module_name + ";\n";
-    for (const auto& registration : model.template_registrations)
-        ci += "    chare " + registration.name + registration.arguments + ";\n";
+    ci += emit_registration_ci_body(model);
     ci += "};\n";
     return ci;
 }

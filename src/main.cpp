@@ -1,5 +1,6 @@
 #include "charmsharp/translator.hpp"
 
+#include <algorithm>
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
@@ -19,7 +20,7 @@ namespace fs = std::filesystem;
 namespace {
 
 void usage() {
-    std::cerr << "Usage: charmsharp [--module NAME] [--out-dir DIR] [--force] [--build [-o EXECUTABLE]] FILE.csh\n";
+    std::cerr << "Usage: charmsharp [--module NAME] [--out-dir DIR] [--force] [--build [-o EXECUTABLE]] FILE.csh [OTHER.csh ...] [NATIVE.cpp ...]\n";
 }
 
 // Execute arguments directly: paths and module names never pass through a shell.
@@ -62,10 +63,17 @@ void write_file(const fs::path& path, const std::string& content) {
     if (!output) throw std::runtime_error("write failed for " + path.string());
 }
 
+// Preserve timestamps for unchanged generated artifacts. This allows Make to
+// avoid rebuilding downstream objects when only unrelated C++ bodies change.
+void write_if_changed(const fs::path& path, const std::string& content) {
+    if (fs::exists(path) && read_file(path) == content) return;
+    write_file(path, content);
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
-    fs::path input_path;
+    std::vector<fs::path> input_paths;
     fs::path output_dir = ".";
     std::string module;
     bool force = false;
@@ -84,18 +92,28 @@ int main(int argc, char** argv) {
         } else if (arg == "--help") {
             usage();
             return 0;
-        } else if (!arg.empty() && arg[0] != '-' && input_path.empty()) {
-            input_path = arg;
+        } else if (!arg.empty() && arg[0] != '-') {
+            input_paths.emplace_back(arg);
         } else {
             usage();
             return 2;
         }
     }
-    if (input_path.empty() || (!build && !executable.empty())) {
+    std::vector<fs::path> native_paths;
+    for (auto it = input_paths.begin(); it != input_paths.end();) {
+        if (it->extension() == ".cpp" || it->extension() == ".cc" ||
+            it->extension() == ".C") {
+            native_paths.push_back(*it);
+            it = input_paths.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    if (input_paths.empty() || (!build && !executable.empty())) {
         usage();
         return 2;
     }
-    if (module.empty()) module = input_path.stem().string();
+    if (module.empty()) module = input_paths.front().stem().string();
 
     try {
         if (build) {
@@ -103,12 +121,97 @@ int main(int argc, char** argv) {
             if (!force && fs::exists(executable))
                 throw std::runtime_error("executable exists; use --force to overwrite");
         }
-        const auto source = read_file(input_path);
+        if (input_paths.size() > 1 || !native_paths.empty()) {
+            // Project path: translate each Charm# unit, generate shared declarations
+            // and one registration translation unit, then compile/link independently.
+            std::vector<std::string> source_texts;
+            std::vector<std::string_view> views;
+            for (const auto& path : input_paths) source_texts.push_back(read_file(path));
+            for (const auto& source : source_texts) views.push_back(source);
+            const auto combined = charmsharp::translate_many(views, module);
+            const auto ci = output_dir / (module + ".ci");
+            const auto header = output_dir / (module + "_classes.h");
+            const auto registration = output_dir / (module + "_registry.cpp");
+            std::vector<fs::path> outputs{ci, header, registration};
+            const auto specialization = output_dir / (module + "_specializations.ci");
+            if (!combined.specialization_interface_source.empty())
+                outputs.push_back(specialization);
+            const std::size_t cpp_start = outputs.size();
+            for (const auto& path : input_paths) {
+                if (path.extension() != ".csh")
+                    throw std::runtime_error("expected Charm# .csh input: " + path.string());
+                const auto cpp = output_dir / (path.stem().string() + ".cpp");
+                if (std::find(outputs.begin(), outputs.end(), cpp) != outputs.end())
+                    throw std::runtime_error("duplicate multi-file output basename: " + cpp.string());
+                outputs.push_back(cpp);
+            }
+            for (const auto& path : native_paths) {
+                const auto object = path.stem().string() + "_native.o";
+                const auto native_cpp = output_dir / (path.stem().string() + ".cpp");
+                if (std::find(outputs.begin(), outputs.end(), native_cpp) != outputs.end())
+                    throw std::runtime_error("native source collides with generated .cpp basename: " +
+                                             path.string());
+                if (std::any_of(input_paths.begin(), input_paths.end(),
+                    [&](const fs::path& source) {
+                        return source.stem().string() + ".o" == object;
+                    }))
+                    throw std::runtime_error("native object collides with generated object: " +
+                                             path.string());
+            }
+            if (!force)
+                for (const auto& output : outputs)
+                    if (fs::exists(output))
+                        throw std::runtime_error("output exists; use --force to overwrite");
+            fs::create_directories(output_dir);
+            write_if_changed(ci, combined.interface_source);
+            write_if_changed(header, combined.shared_header_source);
+            write_if_changed(registration, combined.registration_cpp_source);
+            if (!combined.specialization_interface_source.empty())
+                write_if_changed(specialization, combined.specialization_interface_source);
+            for (std::size_t i = 0; i < input_paths.size(); ++i)
+                write_if_changed(outputs[i + cpp_start], combined.cpp_sources[i]);
+            for (const auto& output : outputs) std::cout << output << '\n';
+            if (build) {
+                std::cout.flush();
+                run_charmc(output_dir, {module + ".ci"});
+                if (!combined.specialization_interface_source.empty())
+                    run_charmc(output_dir, {module + "_specializations.ci"});
+                std::vector<std::string> objects;
+                for (std::size_t i = 0; i < input_paths.size(); ++i) {
+                    const auto object = input_paths[i].stem().string() + ".o";
+                    std::vector<std::string> args{"-c", outputs[i + cpp_start].filename().string(), "-o", object};
+                    for (const auto& path : input_paths)
+                        args.push_back("-I" + fs::absolute(path).parent_path().string());
+                    run_charmc(output_dir, std::move(args));
+                    objects.push_back(object);
+                }
+                const auto registry_object = module + "_registry.o";
+                std::vector<std::string> args{"-c", registration.filename().string(), "-o", registry_object};
+                for (const auto& path : input_paths)
+                    args.push_back("-I" + fs::absolute(path).parent_path().string());
+                run_charmc(output_dir, std::move(args));
+                objects.push_back(registry_object);
+                for (const auto& path : native_paths) {
+                    const auto object = path.stem().string() + "_native.o";
+                    std::vector<std::string> native_args{
+                        "-c", fs::absolute(path).string(), "-o", object};
+                    native_args.push_back("-I" + fs::absolute(path).parent_path().string());
+                    run_charmc(output_dir, std::move(native_args));
+                    objects.push_back(object);
+                }
+                args = {"-language", "charm++", "-o", executable.string()};
+                args.insert(args.end(), objects.begin(), objects.end());
+                run_charmc(output_dir, std::move(args));
+                std::cout << executable << '\n';
+            }
+            return 0;
+        }
+        const auto source = read_file(input_paths.front());
         charmsharp::Generated generated;
         try {
             generated = charmsharp::translate(source, module);
         } catch (const charmsharp::Diagnostic& error) {
-            std::cerr << input_path.string() << ':'
+            std::cerr << input_paths.front().string() << ':'
                       << charmsharp::format_diagnostic(source, error) << '\n';
             return 1;
         }
@@ -139,7 +242,7 @@ int main(int argc, char** argv) {
             run_charmc(output_dir, {module + ".ci"});
             if (!generated.registration_interface_source.empty())
                 run_charmc(output_dir, {module + "_specializations.ci"});
-            run_charmc(output_dir, {module + ".cpp", "-I" + fs::absolute(input_path).parent_path().string(),
+            run_charmc(output_dir, {module + ".cpp", "-I" + fs::absolute(input_paths.front()).parent_path().string(),
                                     "-o", executable.string()});
             std::cout << executable << '\n';
         }
