@@ -97,13 +97,27 @@ void run_charmc_mapped(const fs::path& directory, const std::string& ci_name,
         const auto text = output.substr(start, end == std::string::npos ?
                                        std::string::npos : end - start);
         bool mapped = false;
-        const auto tag = ci_name + ":";
-        const auto pos = text.find(tag);
+        // Charmxi v8.0.0 may report against charmc's preprocessed
+        // "Module.ci.<pid>.TMP.i" rather than "Module.ci".
+        const auto pos = text.find(ci_name);
         if (pos != std::string::npos && (pos == 0 || text[pos - 1] == '/')) {
-            auto p = pos + tag.size();
+            const auto name_end = pos + ci_name.size();
+            const auto colon = text.find(':', name_end);
+            const auto suffix = colon == std::string::npos ? std::string_view{} :
+                std::string_view(text).substr(name_end, colon - name_end);
+            bool recognized = suffix.empty();
+            if (!recognized && suffix.size() > 6 && suffix.front() == '.' &&
+                suffix.ends_with(".TMP.i")) {
+                const auto pid = suffix.substr(1, suffix.size() - 7);
+                recognized = !pid.empty() &&
+                    std::all_of(pid.begin(), pid.end(), [](char c) {
+                        return std::isdigit(static_cast<unsigned char>(c));
+                    });
+            }
+            auto p = colon == std::string::npos ? text.size() : colon + 1;
             const auto digit_start = p;
             while (p < text.size() && std::isdigit(static_cast<unsigned char>(text[p]))) ++p;
-            if (p > digit_start && p < text.size() && text[p] == ':') {
+            if (recognized && p > digit_start && p < text.size() && text[p] == ':') {
                 std::size_t generated_line = 0;
                 const auto [parsed_end, parse_error] = std::from_chars(
                     text.data() + digit_start, text.data() + p, generated_line);
