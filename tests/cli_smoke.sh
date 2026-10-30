@@ -18,8 +18,8 @@ fi
 # Multi-file --build must reject object/output collisions before generating files
 # or invoking charmc. Each failure leaves its output directory untouched.
 mkdir -p "$tmp/left" "$tmp/right"
-printf 'int left_helper() { return 1; }\n' >"$tmp/left/Shared.csh"
-printf 'int right_helper() { return 2; }\n' >"$tmp/right/Shared.csh"
+printf 'message LeftHelper { int value; };\n' >"$tmp/left/Shared.csh"
+printf 'message RightHelper { int value; };\n' >"$tmp/right/Shared.csh"
 printf 'int native_left() { return 1; }\n' >"$tmp/left/Physics.cpp"
 printf 'int native_right() { return 2; }\n' >"$tmp/right/Physics.cpp"
 
