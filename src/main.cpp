@@ -9,6 +9,7 @@
 #include <iostream>
 #include <iterator>
 #include <cctype>
+#include <charconv>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -75,10 +76,22 @@ void run_charmc_mapped(const fs::path& directory, const std::string& ci_name,
     close(pipes[1]);
     std::string output;
     char buffer[4096];
-    ssize_t length;
-    while ((length = read(pipes[0], buffer, sizeof(buffer))) > 0)
-        output.append(buffer, static_cast<std::size_t>(length));
+    for (;;) {
+        const ssize_t length = read(pipes[0], buffer, sizeof(buffer));
+        if (length > 0) {
+            output.append(buffer, static_cast<std::size_t>(length));
+        } else if (length < 0 && errno == EINTR) {
+            continue;
+        } else {
+            break;
+        }
+    }
     close(pipes[0]);
+    // Reap the child before processing external diagnostic text.
+    int status;
+    while (waitpid(child, &status, 0) < 0) {
+        if (errno != EINTR) throw std::runtime_error("cannot wait for Charmxi");
+    }
     for (std::size_t start = 0; start < output.size();) {
         const auto end = output.find('\n', start);
         const auto text = output.substr(start, end == std::string::npos ?
@@ -91,10 +104,13 @@ void run_charmc_mapped(const fs::path& directory, const std::string& ci_name,
             const auto digit_start = p;
             while (p < text.size() && std::isdigit(static_cast<unsigned char>(text[p]))) ++p;
             if (p > digit_start && p < text.size() && text[p] == ':') {
-                const auto generated_line = std::stoull(text.substr(digit_start, p - digit_start));
+                std::size_t generated_line = 0;
+                const auto [parsed_end, parse_error] = std::from_chars(
+                    text.data() + digit_start, text.data() + p, generated_line);
                 const auto origin = std::find_if(origins.begin(), origins.end(),
                     [&](const charmsharp::CiSourceLocation& loc) {
-                        return loc.generated_line == generated_line;
+                        return parse_error == std::errc{} && parsed_end == text.data() + p &&
+                               loc.generated_line == generated_line;
                     });
                 if (origin != origins.end()) {
                     std::cerr << origin->source_path << ':' << origin->source_line
@@ -107,10 +123,6 @@ void run_charmc_mapped(const fs::path& directory, const std::string& ci_name,
         if (!mapped) std::cerr << text << '\n';
         if (end == std::string::npos) break;
         start = end + 1;
-    }
-    int status;
-    while (waitpid(child, &status, 0) < 0) {
-        if (errno != EINTR) throw std::runtime_error("cannot wait for Charmxi");
     }
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
         throw std::runtime_error("charmc failed while processing " + ci_name);
