@@ -50,6 +50,15 @@ void run_charmc(const fs::path& directory, std::vector<std::string> args) {
         throw std::runtime_error("charmc failed with exit status " + std::to_string(WEXITSTATUS(status)));
 }
 
+std::string cpp_line_directive(const fs::path& path) {
+    std::string escaped;
+    for (const char c : fs::absolute(path).string()) {
+        if (c == '\\' || c == '"') escaped += '\\';
+        escaped += c;
+    }
+    return "#line 1 \"" + escaped + "\"\n";
+}
+
 std::string read_file(const fs::path& path) {
     std::ifstream input(path, std::ios::binary);
     if (!input) throw std::runtime_error("cannot read " + path.string());
@@ -129,8 +138,12 @@ int main(int argc, char** argv) {
             for (const auto& path : input_paths) source_texts.push_back(read_file(path));
             for (const auto& source : source_texts) views.push_back(source);
             charmsharp::MultiGenerated combined;
+            std::vector<std::string> absolute_names;
+            std::vector<std::string_view> name_views;
+            for (const auto& path : input_paths) absolute_names.push_back(fs::absolute(path).string());
+            for (const auto& name : absolute_names) name_views.push_back(name);
             try {
-                combined = charmsharp::translate_many(views, module);
+                combined = charmsharp::translate_many(views, module, name_views);
             } catch (const charmsharp::MultiDiagnostic& error) {
                 const auto display = [&](std::size_t index, std::size_t offset,
                                          const std::string& message) {
@@ -185,8 +198,15 @@ int main(int argc, char** argv) {
             write_if_changed(registration, combined.registration_cpp_source);
             if (!combined.specialization_interface_source.empty())
                 write_if_changed(specialization, combined.specialization_interface_source);
-            for (std::size_t i = 0; i < input_paths.size(); ++i)
-                write_if_changed(outputs[i + cpp_start], combined.cpp_sources[i]);
+            for (std::size_t i = 0; i < input_paths.size(); ++i) {
+                auto cpp_source = combined.cpp_sources[i];
+                // The emitter preserves line counts for removed Charm# declarations.
+                // Put the mapping after the generated shared-header include.
+                const auto header_end = cpp_source.find('\n');
+                if (header_end != std::string::npos)
+                    cpp_source.insert(header_end + 1, cpp_line_directive(input_paths[i]));
+                write_if_changed(outputs[i + cpp_start], cpp_source);
+            }
             for (const auto& output : outputs) std::cout << output << '\n';
             if (build) {
                 std::cout.flush();

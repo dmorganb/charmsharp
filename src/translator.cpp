@@ -1197,8 +1197,11 @@ SemanticModel analyze(std::string_view source, std::string_view module_name) {
 namespace charmsharp {
 
 MultiGenerated translate_many(const std::vector<std::string_view>& sources,
-                              std::string_view module_name) {
+                              std::string_view module_name,
+                              const std::vector<std::string_view>& source_paths) {
     if (sources.empty()) throw Diagnostic("expected at least one input", 0);
+    if (!source_paths.empty() && source_paths.size() != sources.size())
+        throw Diagnostic("source path count must match input count", 0);
     MultiGenerated result;
     std::string body;
     std::string specializations;
@@ -1271,7 +1274,8 @@ MultiGenerated translate_many(const std::vector<std::string_view>& sources,
             line_begin = line_end + 1;
         }
 
-        header += detail::emit_shared_classes(source, model);
+        header += detail::emit_shared_classes(source, model,
+            source_paths.empty() ? std::string_view{} : source_paths[file_index]);
         result.cpp_sources.push_back(detail::emit_multi_cpp(source, model));
         ++file_index;
     }

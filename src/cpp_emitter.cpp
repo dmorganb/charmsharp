@@ -47,7 +47,8 @@ std::size_t template_start(std::string_view source, const ParallelDeclaration& c
     return pos;
 }
 
-std::string rewrite(std::string text, std::vector<Edit> edits, std::size_t base) {
+std::string rewrite(std::string text, std::vector<Edit> edits, std::size_t base,
+                    bool preserve_removed_lines = false) {
     std::stable_sort(edits.begin(), edits.end(), [](const Edit& a, const Edit& b) {
         return a.begin > b.begin;
     });
@@ -55,7 +56,15 @@ std::string rewrite(std::string text, std::vector<Edit> edits, std::size_t base)
     for (const auto& edit : edits) {
         if (edit.begin < base || edit.begin > edit.end || edit.end > boundary)
             throw std::logic_error("overlapping or invalid C++ source edits");
-        text.replace(edit.begin - base, edit.end - edit.begin, edit.replacement);
+        if (preserve_removed_lines && edit.replacement.empty()) {
+            // Keep the original source line numbers even when declarations move
+            // into the generated shared classes header.
+            const auto removed = text.substr(edit.begin - base, edit.end - edit.begin);
+            text.replace(edit.begin - base, edit.end - edit.begin,
+                         std::string(std::count(removed.begin(), removed.end(), '\n'), '\n'));
+        } else {
+            text.replace(edit.begin - base, edit.end - edit.begin, edit.replacement);
+        }
         boundary = edit.begin;
     }
     return text;
@@ -94,7 +103,8 @@ std::string emit_template_header(std::string_view source, const SemanticModel& m
     return header;
 }
 
-std::string emit_shared_classes(std::string_view source, const SemanticModel& model) {
+std::string emit_shared_classes(std::string_view source, const SemanticModel& model,
+                                std::string_view source_path) {
     struct Decl { std::size_t begin, end; std::vector<Edit> edits; };
     std::vector<Decl> decls;
     for (const auto& chare : model.parallel_types) {
@@ -112,7 +122,7 @@ std::string emit_shared_classes(std::string_view source, const SemanticModel& mo
             (message.ordinary_bases.empty() ? " " : ", " + message.ordinary_bases + " ")});
         if (!message.variable_arrays.empty()) {
             d.edits.push_back({message.opening_brace + 1, message.opening_brace + 1,
-                "\n    friend class CMessage_" + message.name + ";"});
+                " friend class CMessage_" + message.name + "; "});
             for (const auto& field : message.variable_arrays) {
                 d.edits.push_back({field.name_source.begin, field.name_source.begin, "*"});
                 d.edits.push_back({field.suffix.begin, field.suffix.end, ""});
@@ -129,7 +139,7 @@ std::string emit_shared_classes(std::string_view source, const SemanticModel& mo
         Decl d{pup.attribute.begin, close + 1, {}};
         d.edits.push_back({pup.attribute.begin, pup.attribute.end, ""});
         d.edits.push_back({pup.closing_brace, pup.closing_brace,
-                          "\n    PUPable_decl(" + pup.name + ");\n"});
+                          " PUPable_decl(" + pup.name + "); "});
         decls.push_back(std::move(d));
     }
     for (auto& decl : decls) {
@@ -149,6 +159,16 @@ std::string emit_shared_classes(std::string_view source, const SemanticModel& mo
     });
     std::string result;
     for (const auto& decl : decls) {
+        if (!source_path.empty()) {
+            std::string escaped;
+            for (const char c : source_path) {
+                if (c == '\\' || c == '"') escaped += '\\';
+                escaped += c;
+            }
+            const std::size_t line =
+                1 + std::count(source.begin(), source.begin() + decl.begin, '\n');
+            result += "#line " + std::to_string(line) + " \"" + escaped + "\"\n";
+        }
         result += rewrite(std::string(source.substr(decl.begin, decl.end - decl.begin)),
                           decl.edits, decl.begin) + "\n";
     }
@@ -182,7 +202,7 @@ std::string emit_multi_cpp(std::string_view source, const SemanticModel& model) 
         edits.push_back({parameter.suffix.begin, parameter.suffix.end, ""});
     }
     return "#include \"" + model.module_name + "_classes.h\"\n" +
-           rewrite(std::string(source), std::move(edits), 0);
+           rewrite(std::string(source), std::move(edits), 0, true);
 }
 
 std::string emit_cpp(std::string_view source, const SemanticModel& model) {

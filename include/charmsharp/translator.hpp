@@ -26,7 +26,8 @@ struct MultiGenerated {
 };
 
 [[nodiscard]] MultiGenerated translate_many(
-    const std::vector<std::string_view>& sources, std::string_view module_name);
+    const std::vector<std::string_view>& sources, std::string_view module_name,
+    const std::vector<std::string_view>& source_paths = {});
 
 class Diagnostic : public std::runtime_error {
 public:
