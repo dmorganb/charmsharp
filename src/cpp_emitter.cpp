@@ -103,7 +103,8 @@ std::string emit_template_header(std::string_view source, const SemanticModel& m
     return header;
 }
 
-std::string emit_shared_classes(std::string_view source, const SemanticModel& model) {
+std::string emit_shared_classes(std::string_view source, const SemanticModel& model,
+                                std::string_view source_path) {
     struct Decl { std::size_t begin, end; std::vector<Edit> edits; };
     std::vector<Decl> decls;
     for (const auto& chare : model.parallel_types) {
@@ -158,6 +159,15 @@ std::string emit_shared_classes(std::string_view source, const SemanticModel& mo
     });
     std::string result;
     for (const auto& decl : decls) {
+        if (!source_path.empty()) {
+            std::string escaped;
+            for (const char c : source_path) {
+                if (c == '\\\\' || c == '"') escaped += '\\\\';
+                escaped += c;
+            }
+            const std::size_t line = 1 + std::count(source.begin(), source.begin() + decl.begin, '\\n');
+            result += "#line " + std::to_string(line) + " \\"" + escaped + "\\"\\n";
+        }
         result += rewrite(std::string(source.substr(decl.begin, decl.end - decl.begin)),
                           decl.edits, decl.begin) + "\n";
     }

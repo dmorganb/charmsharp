@@ -138,8 +138,12 @@ int main(int argc, char** argv) {
             for (const auto& path : input_paths) source_texts.push_back(read_file(path));
             for (const auto& source : source_texts) views.push_back(source);
             charmsharp::MultiGenerated combined;
+            std::vector<std::string> absolute_names;
+            std::vector<std::string_view> name_views;
+            for (const auto& path : input_paths) absolute_names.push_back(fs::absolute(path).string());
+            for (const auto& name : absolute_names) name_views.push_back(name);
             try {
-                combined = charmsharp::translate_many(views, module);
+                combined = charmsharp::translate_many(views, module, name_views);
             } catch (const charmsharp::MultiDiagnostic& error) {
                 const auto display = [&](std::size_t index, std::size_t offset,
                                          const std::string& message) {
