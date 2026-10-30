@@ -21,6 +21,7 @@ EOF
 test -f "$tmp/generated/Simulation.ci"
 test -f "$tmp/generated/Main.cpp"
 test -f "$tmp/generated/Worker.cpp"
+grep -Fq '#line 1 "' "$tmp/generated/Worker.cpp"
 test -f "$tmp/generated/Simulation_classes.h"
 test -f "$tmp/generated/Simulation_registry.cpp"
 grep -q 'class Worker' "$tmp/generated/Simulation_classes.h"
